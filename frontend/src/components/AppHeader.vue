@@ -1,9 +1,9 @@
 <template>
   <el-header class="header">
     <div class="header-inner">
-      <router-link to="/" class="logo">商品交易系统</router-link>
+      <router-link to="/" class="logo">优选商城</router-link>
       <div class="nav-links">
-        <router-link to="/products">商品</router-link>
+        <router-link v-if="userStore.role !== 'SELLER'" to="/products">商品</router-link>
         <template v-if="userStore.isLoggedIn">
           <router-link v-if="userStore.role === 'BUYER'" to="/cart">
             <el-badge :value="cartStore.count || null">购物车</el-badge>
@@ -49,11 +49,54 @@ function handleCommand(cmd) {
 </script>
 
 <style scoped>
-.header { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.1); position: sticky; top: 0; z-index: 100; }
-.header-inner { max-width: 1200px; margin: 0 auto; height: 60px; display: flex; align-items: center; justify-content: space-between; }
-.logo { font-size: 20px; font-weight: bold; color: #409eff; text-decoration: none; }
-.nav-links { display: flex; align-items: center; gap: 20px; }
-.nav-links a { text-decoration: none; color: #333; }
-.nav-links a:hover, .nav-links a.router-link-active { color: #409eff; }
-.user-name { cursor: pointer; color: #333; display: flex; align-items: center; gap: 4px; }
+.header {
+  background: var(--brand-gradient);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+}
+.logo:hover { color: #fff; }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.nav-links a {
+  text-decoration: none;
+  color: rgba(255,255,255,0.85);
+  font-size: 14px;
+  padding-bottom: 2px;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-links a:hover { color: #fff; }
+.nav-links a.router-link-active {
+  color: #fff;
+  border-bottom-color: var(--brand-primary);
+}
+.user-name {
+  cursor: pointer;
+  color: rgba(255,255,255,0.85);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+}
+.user-name:hover { color: #fff; }
 </style>

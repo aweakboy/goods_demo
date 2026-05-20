@@ -1,19 +1,20 @@
 <template>
   <div class="auth-container">
     <el-card class="auth-card">
-      <h2>登录</h2>
+      <div class="brand-top">优选商城</div>
+      <h2 class="auth-title">欢迎回来</h2>
       <el-form :model="form" :rules="rules" ref="formRef" label-position="top">
         <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" placeholder="请输入邮箱" />
+          <el-input v-model="form.email" placeholder="请输入邮箱" size="large" />
         </el-form-item>
         <el-form-item label="密码" prop="password">
-          <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password />
+          <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password size="large" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleLogin" style="width:100%">登录</el-button>
+          <el-button type="primary" :loading="loading" @click="handleLogin" style="width:100%" size="large">登录</el-button>
         </el-form-item>
       </el-form>
-      <p style="text-align:center">没有账号？<router-link to="/register">立即注册</router-link></p>
+      <p class="auth-link">没有账号？<router-link to="/register">立即注册</router-link></p>
     </el-card>
   </div>
 </template>
@@ -42,7 +43,8 @@ async function handleLogin() {
     const res = await authApi.login(form)
     userStore.setUser(res.data)
     ElMessage.success('登录成功')
-    router.push(res.data.role === 'ADMIN' ? '/admin/overview' : '/')
+    const role = res.data.role
+    router.push(role === 'ADMIN' ? '/admin/overview' : role === 'SELLER' ? '/seller/products' : '/')
   } catch (err) {
     ElMessage.error(err?.message || '登录失败')
   } finally {
@@ -52,6 +54,33 @@ async function handleLogin() {
 </script>
 
 <style scoped>
-.auth-container { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 60px); }
-.auth-card { width: 400px; }
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 60px);
+  background: var(--brand-gradient);
+}
+.auth-card {
+  width: 420px;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25) !important;
+  overflow: hidden;
+}
+.brand-top {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+.auth-title {
+  text-align: center;
+  margin: 0 0 24px;
+  font-size: 18px;
+  color: #333;
+  font-weight: 500;
+}
+.auth-link { text-align: center; margin: 0; color: #666; font-size: 14px; }
 </style>

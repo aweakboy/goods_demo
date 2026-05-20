@@ -1,0 +1,17 @@
+/* Brand variables */
+:root {
+  --brand-primary: #FF6B2B;
+  --brand-primary-light: #ff9266;
+  --brand-dark: #1A2540;
+  --brand-dark-2: #243B55;
+  --brand-gradient: linear-gradient(135deg, #1A2540 0%, #243B55 100%);
+
+  /* Override Element Plus primary color to brand orange */
+  --el-color-primary: #FF6B2B;
+  --el-color-primary-light-3: #ff9266;
+  --el-color-primary-light-5: #ffb591;
+  --el-color-primary-light-7: #ffd4ba;
+  --el-color-primary-light-8: #ffe3d3;
+  --el-color-primary-light-9: #fff1eb;
+  --el-color-primary-dark-2: #d45420;
+}

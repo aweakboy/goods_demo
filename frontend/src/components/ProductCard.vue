@@ -19,11 +19,32 @@ defineProps({ product: Object })
 </script>
 
 <style scoped>
-.product-card { cursor: pointer; }
+.product-card {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-left 0.2s;
+  border-left: 3px solid transparent;
+}
+.product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  border-left-color: var(--brand-primary);
+}
 .product-img { width: 100%; height: 180px; display: block; }
 .product-info { padding: 10px 0 0; }
-.product-name { margin: 0 0 6px; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.product-price { margin: 0 0 4px; font-size: 16px; font-weight: bold; color: #f56c6c; }
+.product-name {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.product-price {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--brand-primary);
+}
 .shop-name { margin: 0 0 6px; font-size: 12px; color: #409eff; cursor: pointer; }
 .shop-name:hover { text-decoration: underline; }
 </style>

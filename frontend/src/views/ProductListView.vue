@@ -1,31 +1,38 @@
 <template>
-  <div class="page-container">
-    <div class="filter-bar">
-      <el-select v-model="categoryId" placeholder="全部分类" clearable @change="fetchProducts">
-        <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
-      </el-select>
-      <el-input v-model="keyword" placeholder="搜索商品..." clearable style="width:220px"
-        @keyup.enter="fetchProducts" @clear="fetchProducts">
-        <template #append><el-button @click="fetchProducts"><el-icon><Search /></el-icon></el-button></template>
-      </el-input>
-      <el-input v-model="shopKeyword" placeholder="按店铺名搜索..." clearable style="width:180px"
-        @keyup.enter="searchByShop" @clear="clearShopFilter" />
+  <div>
+    <div class="hero-banner">
+      <h1 class="hero-title">发现好物，尽在优选</h1>
+      <p class="hero-sub">品质商家 · 安心购物</p>
     </div>
 
-    <div v-if="loading" class="loading-wrap"><el-skeleton :rows="3" animated /></div>
-    <div v-else-if="products.length === 0" class="empty">暂无相关商品</div>
-    <div v-else class="product-grid">
-      <ProductCard v-for="p in products" :key="p.id" :product="p" />
-    </div>
+    <div class="page-container">
+      <div class="filter-card">
+        <el-select v-model="categoryId" placeholder="全部分类" clearable @change="fetchProducts">
+          <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
+        </el-select>
+        <el-input v-model="keyword" placeholder="搜索商品..." clearable style="width:220px"
+          @keyup.enter="fetchProducts" @clear="fetchProducts">
+          <template #append><el-button @click="fetchProducts"><el-icon><Search /></el-icon></el-button></template>
+        </el-input>
+        <el-input v-model="shopKeyword" placeholder="按店铺名搜索..." clearable style="width:180px"
+          @keyup.enter="searchByShop" @clear="clearShopFilter" />
+      </div>
 
-    <el-pagination
-      v-if="total > 0"
-      background layout="prev, pager, next"
-      :total="total" :page-size="pageSize"
-      v-model:current-page="currentPage"
-      @current-change="fetchProducts"
-      style="margin-top:20px;justify-content:center;display:flex"
-    />
+      <div v-if="loading" class="loading-wrap"><el-skeleton :rows="3" animated /></div>
+      <div v-else-if="products.length === 0" class="empty">暂无相关商品</div>
+      <div v-else class="product-grid">
+        <ProductCard v-for="p in products" :key="p.id" :product="p" />
+      </div>
+
+      <el-pagination
+        v-if="total > 0"
+        background layout="prev, pager, next"
+        :total="total" :page-size="pageSize"
+        v-model:current-page="currentPage"
+        @current-change="fetchProducts"
+        style="margin-top:20px;justify-content:center;display:flex"
+      />
+    </div>
   </div>
 </template>
 
@@ -95,7 +102,38 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.filter-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.hero-banner {
+  background: var(--brand-gradient);
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.hero-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.hero-sub {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255,255,255,0.75);
+  letter-spacing: 2px;
+}
+.filter-card {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  margin-bottom: 20px;
+}
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .loading-wrap { padding: 40px 0; }
 .empty { text-align: center; padding: 60px; color: #999; }

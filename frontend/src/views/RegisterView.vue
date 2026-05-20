@@ -1,16 +1,17 @@
 <template>
   <div class="auth-container">
     <el-card class="auth-card">
-      <h2>注册</h2>
+      <div class="brand-top">优选商城</div>
+      <h2 class="auth-title">创建账号</h2>
       <el-form :model="form" :rules="rules" ref="formRef" label-position="top">
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" placeholder="2-50个字符" />
+          <el-input v-model="form.username" placeholder="2-50个字符" size="large" />
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" placeholder="请输入邮箱" />
+          <el-input v-model="form.email" placeholder="请输入邮箱" size="large" />
         </el-form-item>
         <el-form-item label="密码" prop="password">
-          <el-input v-model="form.password" type="password" placeholder="至少8位，含字母和数字" show-password />
+          <el-input v-model="form.password" type="password" placeholder="至少8位，含字母和数字" show-password size="large" />
         </el-form-item>
         <el-form-item label="角色" prop="role">
           <el-radio-group v-model="form.role">
@@ -19,10 +20,10 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" :loading="loading" @click="handleRegister" style="width:100%">注册</el-button>
+          <el-button type="primary" :loading="loading" @click="handleRegister" style="width:100%" size="large">注册</el-button>
         </el-form-item>
       </el-form>
-      <p style="text-align:center">已有账号？<router-link to="/login">立即登录</router-link></p>
+      <p class="auth-link">已有账号？<router-link to="/login">立即登录</router-link></p>
     </el-card>
   </div>
 </template>
@@ -63,6 +64,34 @@ async function handleRegister() {
 </script>
 
 <style scoped>
-.auth-container { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 60px); }
-.auth-card { width: 400px; }
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 60px);
+  background: var(--brand-gradient);
+  padding: 40px 0;
+}
+.auth-card {
+  width: 420px;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25) !important;
+  overflow: hidden;
+}
+.brand-top {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+.auth-title {
+  text-align: center;
+  margin: 0 0 24px;
+  font-size: 18px;
+  color: #333;
+  font-weight: 500;
+}
+.auth-link { text-align: center; margin: 0; color: #666; font-size: 14px; }
 </style>
