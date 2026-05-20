@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(openspec new *)",
+      "Bash(npm list *)",
+      "Bash(node *)",
+      "Bash(npx openspec *)",
+      "Bash(xargs grep *)",
+      "Bash(xargs cat *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Progress: {d[\\\\\"progress\\\\\"][\\\\\"complete\\\\\"]}/{d[\\\\\"progress\\\\\"][\\\\\"total\\\\\"]}'\\); print\\('State:', d['state']\\)\")",
+      "Bash(xargs ls *)",
+      "Bash(gh auth *)"
+    ]
+  }
+}
