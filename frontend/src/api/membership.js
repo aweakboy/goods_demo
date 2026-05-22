@@ -11,5 +11,6 @@ export const membershipApi = {
   status: () => request.get('/buyer/membership/status'),
   purchases: () => request.get('/buyer/membership/purchases'),
   purchase: planId => request.post(`/buyer/membership/plans/${planId}/purchase`),
+  payPurchase: purchaseId => request.post(`/buyer/membership/purchases/${purchaseId}/pay`),
   claimMonthlyBenefit: () => request.post('/buyer/membership/benefits/monthly/claim')
 }

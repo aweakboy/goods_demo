@@ -1,5 +1,6 @@
 package com.trading.controller;
 
+import com.trading.common.BusinessException;
 import com.trading.entity.*;
 import com.trading.enums.BuyerMembershipStatus;
 import com.trading.enums.BuyerCouponStatus;
@@ -83,6 +84,42 @@ class BuyerMembershipControllerTest {
                         .with(SecurityMockMvcRequestPostProcessors.user(buyerPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string("<form id=\"pay\"></form>"));
+    }
+
+    @Test
+    void payPurchase_buyer_returnsPaymentHtml() throws Exception {
+        MembershipPurchase purchase = purchase();
+        purchase.setPlan(plan());
+        when(membershipService.preparePendingPurchasePayment(2L, 20L)).thenReturn(purchase);
+        when(paymentService.createPayForm(eq("MEM-20"), eq(BigDecimal.valueOf(30)), anyString()))
+                .thenReturn("<form id=\"pay\"></form>");
+
+        mockMvc.perform(post("/api/v1/buyer/membership/purchases/20/pay")
+                        .with(SecurityMockMvcRequestPostProcessors.user(buyerPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string("<form id=\"pay\"></form>"));
+    }
+
+    @Test
+    void payPurchase_foreignPurchase_returnsForbidden() throws Exception {
+        when(membershipService.preparePendingPurchasePayment(2L, 20L))
+                .thenThrow(BusinessException.forbidden("无权支付该会员购买记录"));
+
+        mockMvc.perform(post("/api/v1/buyer/membership/purchases/20/pay")
+                        .with(SecurityMockMvcRequestPostProcessors.user(buyerPrincipal())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("无权支付该会员购买记录"));
+    }
+
+    @Test
+    void payPurchase_nonPendingPurchase_returnsBadRequest() throws Exception {
+        when(membershipService.preparePendingPurchasePayment(2L, 20L))
+                .thenThrow(BusinessException.badRequest("会员购买记录状态不允许支付"));
+
+        mockMvc.perform(post("/api/v1/buyer/membership/purchases/20/pay")
+                        .with(SecurityMockMvcRequestPostProcessors.user(buyerPrincipal())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("会员购买记录状态不允许支付"));
     }
 
     @Test

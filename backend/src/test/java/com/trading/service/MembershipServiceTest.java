@@ -39,6 +39,8 @@ class MembershipServiceTest {
     void createPurchase_activePlan_createsPendingPurchaseWithOutTradeNo() {
         MembershipPlan plan = plan();
         when(membershipPlanRepository.findById(1L)).thenReturn(Optional.of(plan));
+        when(membershipPurchaseRepository.findFirstByBuyerIdAndPlanIdAndStatusOrderByCreatedAtDesc(
+                2L, 1L, MembershipPurchaseStatus.PENDING_PAYMENT)).thenReturn(Optional.empty());
         when(membershipPurchaseRepository.save(any(MembershipPurchase.class))).thenAnswer(i -> {
             MembershipPurchase purchase = i.getArgument(0);
             if (purchase.getId() == null) {
@@ -55,6 +57,39 @@ class MembershipServiceTest {
     }
 
     @Test
+    void createPurchase_existingPendingPurchase_reusesIt() {
+        MembershipPlan plan = plan();
+        MembershipPurchase existing = pendingPurchase();
+        when(membershipPlanRepository.findById(1L)).thenReturn(Optional.of(plan));
+        when(membershipPurchaseRepository.findFirstByBuyerIdAndPlanIdAndStatusOrderByCreatedAtDesc(
+                2L, 1L, MembershipPurchaseStatus.PENDING_PAYMENT)).thenReturn(Optional.of(existing));
+
+        MembershipPurchase purchase = membershipService.createPurchase(2L, 1L);
+
+        assertSame(existing, purchase);
+        assertEquals("MEM-20", purchase.getOutTradeNo());
+        assertSame(plan, purchase.getPlan());
+        verify(membershipPurchaseRepository, never()).save(any());
+    }
+
+    @Test
+    void createPurchase_existingPendingPurchaseWithoutOutTradeNo_repairsAndReusesIt() {
+        MembershipPlan plan = plan();
+        MembershipPurchase existing = pendingPurchase();
+        existing.setOutTradeNo(null);
+        when(membershipPlanRepository.findById(1L)).thenReturn(Optional.of(plan));
+        when(membershipPurchaseRepository.findFirstByBuyerIdAndPlanIdAndStatusOrderByCreatedAtDesc(
+                2L, 1L, MembershipPurchaseStatus.PENDING_PAYMENT)).thenReturn(Optional.of(existing));
+        when(membershipPurchaseRepository.save(existing)).thenReturn(existing);
+
+        MembershipPurchase purchase = membershipService.createPurchase(2L, 1L);
+
+        assertSame(existing, purchase);
+        assertEquals("MEM-20", purchase.getOutTradeNo());
+        verify(membershipPurchaseRepository).save(existing);
+    }
+
+    @Test
     void createPurchase_inactivePlan_throwsBadRequest() {
         MembershipPlan plan = plan();
         plan.setStatus(MembershipPlanStatus.INACTIVE);
@@ -63,6 +98,59 @@ class MembershipServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> membershipService.createPurchase(2L, 1L));
 
         assertEquals(400, ex.getStatus());
+        verify(membershipPurchaseRepository, never()).save(any());
+    }
+
+    @Test
+    void preparePendingPurchasePayment_ownPendingPurchase_returnsPayablePurchase() {
+        MembershipPurchase purchase = pendingPurchase();
+        purchase.setPlan(plan());
+        when(membershipPurchaseRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(purchase));
+
+        MembershipPurchase result = membershipService.preparePendingPurchasePayment(2L, 20L);
+
+        assertSame(purchase, result);
+        assertEquals("MEM-20", result.getOutTradeNo());
+        verify(membershipPurchaseRepository, never()).save(any());
+    }
+
+    @Test
+    void preparePendingPurchasePayment_missingOutTradeNo_repairsBeforeReturn() {
+        MembershipPurchase purchase = pendingPurchase();
+        purchase.setOutTradeNo(null);
+        purchase.setPlan(plan());
+        when(membershipPurchaseRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(purchase));
+        when(membershipPurchaseRepository.save(purchase)).thenReturn(purchase);
+
+        MembershipPurchase result = membershipService.preparePendingPurchasePayment(2L, 20L);
+
+        assertEquals("MEM-20", result.getOutTradeNo());
+        verify(membershipPurchaseRepository).save(purchase);
+    }
+
+    @Test
+    void preparePendingPurchasePayment_nonPendingPurchase_throwsBadRequest() {
+        MembershipPurchase purchase = pendingPurchase();
+        purchase.setStatus(MembershipPurchaseStatus.PAID);
+        when(membershipPurchaseRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(purchase));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> membershipService.preparePendingPurchasePayment(2L, 20L));
+
+        assertEquals(400, ex.getStatus());
+        verify(membershipPurchaseRepository, never()).save(any());
+    }
+
+    @Test
+    void preparePendingPurchasePayment_foreignPurchase_throwsForbidden() {
+        MembershipPurchase purchase = pendingPurchase();
+        purchase.setBuyerId(3L);
+        when(membershipPurchaseRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(purchase));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> membershipService.preparePendingPurchasePayment(2L, 20L));
+
+        assertEquals(403, ex.getStatus());
         verify(membershipPurchaseRepository, never()).save(any());
     }
 

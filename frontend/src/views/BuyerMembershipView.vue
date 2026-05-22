@@ -66,6 +66,19 @@
         <el-table-column label="创建时间" width="170">
           <template #default="{row}">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
+        <el-table-column label="操作" width="120">
+          <template #default="{row}">
+            <el-button
+              v-if="row.status === 'PENDING_PAYMENT'"
+              link
+              type="primary"
+              :loading="payingPurchaseId === row.id"
+              @click="payPurchase(row)"
+            >
+              继续支付
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
   </div>
@@ -83,6 +96,7 @@ const loadingPlans = ref(false)
 const loadingPurchases = ref(false)
 const claiming = ref(false)
 const buyingId = ref(null)
+const payingPurchaseId = ref(null)
 
 const statusTitle = computed(() => {
   if (status.value.member) return '会员有效'
@@ -175,13 +189,7 @@ async function buy(row) {
   buyingId.value = row.id
   try {
     const htmlForm = await membershipApi.purchase(row.id)
-    const div = document.createElement('div')
-    div.innerHTML = htmlForm
-    document.body.appendChild(div)
-    const form = div.querySelector('form')
-    form.target = '_blank'
-    form.submit()
-    document.body.removeChild(div)
+    submitPayForm(htmlForm)
     ElMessage.info('支付页面已打开，支付成功后刷新会员中心查看状态')
     await loadPurchases()
   } catch (err) {
@@ -189,6 +197,34 @@ async function buy(row) {
   } finally {
     buyingId.value = null
   }
+}
+
+async function payPurchase(row) {
+  payingPurchaseId.value = row.id
+  try {
+    const htmlForm = await membershipApi.payPurchase(row.id)
+    submitPayForm(htmlForm)
+    ElMessage.info('支付页面已打开，支付成功后刷新会员中心查看状态')
+    await loadPurchases()
+  } catch (err) {
+    ElMessage.error(err?.message || '继续支付失败')
+  } finally {
+    payingPurchaseId.value = null
+  }
+}
+
+function submitPayForm(htmlForm) {
+  const div = document.createElement('div')
+  div.innerHTML = htmlForm
+  document.body.appendChild(div)
+  const form = div.querySelector('form')
+  if (!form) {
+    document.body.removeChild(div)
+    throw new Error('支付表单无效')
+  }
+  form.target = '_blank'
+  form.submit()
+  document.body.removeChild(div)
 }
 
 onMounted(() => {

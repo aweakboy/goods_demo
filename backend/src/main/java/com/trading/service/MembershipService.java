@@ -45,6 +45,21 @@ public class MembershipService {
         if (plan.getStatus() != MembershipPlanStatus.ACTIVE) {
             throw BusinessException.badRequest("会员套餐已停用");
         }
+        Optional<MembershipPurchase> pendingPurchase = membershipPurchaseRepository
+                .findFirstByBuyerIdAndPlanIdAndStatusOrderByCreatedAtDesc(
+                        buyerId,
+                        plan.getId(),
+                        MembershipPurchaseStatus.PENDING_PAYMENT
+                );
+        if (pendingPurchase.isPresent()) {
+            MembershipPurchase existing = pendingPurchase.get();
+            if (existing.getOutTradeNo() == null) {
+                existing.setOutTradeNo(outTradeNo(existing.getId()));
+                existing = membershipPurchaseRepository.save(existing);
+            }
+            existing.setPlan(plan);
+            return existing;
+        }
         MembershipPurchase purchase = MembershipPurchase.builder()
                 .buyerId(buyerId)
                 .planId(plan.getId())
@@ -55,6 +70,27 @@ public class MembershipService {
         purchase.setOutTradeNo(outTradeNo(purchase.getId()));
         purchase.setPlan(plan);
         return membershipPurchaseRepository.save(purchase);
+    }
+
+    @Transactional
+    public MembershipPurchase preparePendingPurchasePayment(Long buyerId, Long purchaseId) {
+        MembershipPurchase purchase = membershipPurchaseRepository.findByIdForUpdate(purchaseId)
+                .orElseThrow(() -> BusinessException.notFound("会员购买记录不存在"));
+        if (!purchase.getBuyerId().equals(buyerId)) {
+            throw BusinessException.forbidden("无权支付该会员购买记录");
+        }
+        if (purchase.getStatus() != MembershipPurchaseStatus.PENDING_PAYMENT) {
+            throw BusinessException.badRequest("会员购买记录状态不允许支付");
+        }
+        if (purchase.getOutTradeNo() == null) {
+            purchase.setOutTradeNo(outTradeNo(purchase.getId()));
+            purchase = membershipPurchaseRepository.save(purchase);
+        }
+        if (purchase.getPlan() == null) {
+            purchase.setPlan(membershipPlanRepository.findById(purchase.getPlanId())
+                    .orElseThrow(() -> BusinessException.notFound("会员套餐不存在")));
+        }
+        return purchase;
     }
 
     @Transactional

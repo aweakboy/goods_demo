@@ -63,6 +63,17 @@ public class BuyerMembershipController {
         return ResponseEntity.ok(html);
     }
 
+    @PostMapping(value = "/purchases/{purchaseId}/pay", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> payPurchase(@AuthenticationPrincipal User user, @PathVariable Long purchaseId) {
+        MembershipPurchase purchase = membershipService.preparePendingPurchasePayment(user.getId(), purchaseId);
+        String html = paymentService.createPayForm(
+                purchase.getOutTradeNo(),
+                purchase.getAmount(),
+                "会员套餐" + purchase.getPlanId()
+        );
+        return ResponseEntity.ok(html);
+    }
+
     @PostMapping("/benefits/monthly/claim")
     public ApiResponse<MembershipMonthlyBenefitResponse> claimMonthlyBenefit(@AuthenticationPrincipal User user) {
         return ApiResponse.created(MembershipMonthlyBenefitResponse.from(
