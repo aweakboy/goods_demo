@@ -45,7 +45,7 @@ onMounted(fetchOrders)
 <style scoped>
 .empty { padding: 40px 0; }
 .order-card { margin-bottom: 12px; cursor: pointer; }
-.order-card:hover { border-color: #409eff; }
+.order-card:hover { border-color: var(--el-color-primary); }
 .order-header, .order-footer { display: flex; justify-content: space-between; align-items: center; }
-.order-footer { margin-top: 8px; color: #666; }
+.order-footer { margin-top: 8px; color: var(--text-secondary); }
 </style>

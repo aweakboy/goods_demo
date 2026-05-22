@@ -1,0 +1,60 @@
+# map-address-validation Specification
+
+## Purpose
+TBD - created by archiving change integrate-address-validation-map-service. Update Purpose after archive.
+## Requirements
+### Requirement: 地图服务配置
+系统 SHALL 支持配置地图服务提供商和访问凭据，用于服务端地址解析与前端地图展示。
+
+#### Scenario: 地图服务配置完整
+- **WHEN** 系统启动且配置了地图服务提供商、服务端 Web 服务 Key 和前端 JS API Key
+- **THEN** 后端地址校验服务可调用地图服务进行地理编码
+- **AND** 前端页面可加载地图组件展示 marker
+
+#### Scenario: 服务端地图 Key 缺失
+- **WHEN** 用户提交需要地址校验的请求但服务端 Web 服务 Key 未配置
+- **THEN** 系统返回地址校验暂不可用
+- **AND** 系统不得将地址标记为 `VALID`
+
+### Requirement: 地址解析与校验
+系统 SHALL 根据结构化地址调用地图服务进行地理编码，并返回经纬度、标准化地址和校验结果。
+
+#### Scenario: 地址校验成功
+- **WHEN** 系统使用省、市、区和详细地址调用地图服务
+- **AND** 地图服务返回与提交行政区匹配且包含经纬度的结果
+- **THEN** 系统返回校验状态 `VALID`
+- **AND** 系统返回经度、纬度和标准化地址
+
+#### Scenario: 地址无匹配结果
+- **WHEN** 地图服务未返回可用地理编码结果
+- **THEN** 系统返回校验状态 `INVALID`
+- **AND** 系统提示地址无法定位
+
+#### Scenario: 地址行政区不一致
+- **WHEN** 地图服务返回结果的省、市或区与用户提交地址不一致
+- **THEN** 系统返回校验状态 `INVALID`
+- **AND** 系统提示地址与行政区不匹配
+
+#### Scenario: 地图服务调用失败
+- **WHEN** 地图服务网络异常、认证失败或达到配额限制
+- **THEN** 系统返回地址校验暂不可用
+- **AND** 系统不得将地址标记为 `VALID`
+
+### Requirement: 地图定位展示
+系统 SHALL 在有已校验经纬度的业务对象上展示地图定位，并在无法展示地图时保留文本地址展示。
+
+#### Scenario: 有经纬度时展示地图
+- **WHEN** 页面接收到已校验地址及经纬度
+- **THEN** 前端加载地图组件
+- **AND** 地图在对应坐标展示 marker 和地址文本
+
+#### Scenario: 无经纬度时文本降级
+- **WHEN** 页面接收到地址文本但没有经纬度
+- **THEN** 前端不渲染地图 marker
+- **AND** 前端继续展示文本地址
+
+#### Scenario: 地图加载失败
+- **WHEN** 前端地图 SDK 加载失败
+- **THEN** 前端展示地图不可用提示
+- **AND** 前端继续展示文本地址
+

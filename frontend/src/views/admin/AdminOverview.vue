@@ -4,8 +4,8 @@
     <el-row :gutter="16">
       <el-col :span="6" v-for="card in cards" :key="card.label">
         <el-card shadow="never" style="text-align:center">
-          <div style="font-size:13px;color:#999;margin-bottom:8px">{{ card.label }}</div>
-          <div style="font-size:28px;font-weight:bold;color:#333">{{ card.value }}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">{{ card.label }}</div>
+          <div style="font-size:28px;font-weight:bold;color:var(--text-primary)">{{ card.value }}</div>
         </el-card>
       </el-col>
     </el-row>

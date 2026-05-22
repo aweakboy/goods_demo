@@ -1,5 +1,6 @@
 package com.trading.service;
 
+import com.trading.annotation.OperationLog;
 import com.trading.common.BusinessException;
 import com.trading.dto.*;
 import com.trading.entity.User;
@@ -18,6 +19,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
+    @OperationLog(module = "用户", action = "注册")
     public TokenResponse register(RegisterRequest req) {
         if (req.getRole() == com.trading.enums.Role.ADMIN) {
             throw BusinessException.badRequest("不支持该角色注册");
@@ -38,6 +40,7 @@ public class AuthService {
         return buildTokenResponse(user);
     }
 
+    @OperationLog(module = "用户", action = "登录")
     public TokenResponse login(LoginRequest req) {
         User user = userRepository.findByEmail(req.getEmail())
                 .orElseThrow(() -> BusinessException.unauthorized("邮箱或密码错误"));

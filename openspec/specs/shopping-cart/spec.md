@@ -1,4 +1,9 @@
-## ADDED Requirements
+# shopping-cart Specification
+
+## Purpose
+定义买家购物车的添加、查看、修改和删除能力。
+
+## Requirements
 
 ### Requirement: 添加商品到购物车
 系统 SHALL 允许已登录买家将指定数量的商品加入购物车，若商品已存在则增加数量。

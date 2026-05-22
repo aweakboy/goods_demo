@@ -7,8 +7,15 @@ const routes = [
   { path: '/products/:id', component: () => import('@/views/ProductDetailView.vue') },
   { path: '/cart', component: () => import('@/views/CartView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
   { path: '/checkout', component: () => import('@/views/CheckoutView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
+  { path: '/addresses', component: () => import('@/views/BuyerAddressesView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
+  { path: '/coupons', component: () => import('@/views/BuyerCouponsView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
+  { path: '/membership', component: () => import('@/views/BuyerMembershipView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
+  { path: '/favorite-shops', component: () => import('@/views/BuyerFavoriteShopsView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
+  { path: '/price-alerts', component: () => import('@/views/BuyerPriceAlertsView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
+  { path: '/notifications', component: () => import('@/views/BuyerNotificationsView.vue'), meta: { requiresAuth: true, role: 'BUYER' } },
   { path: '/orders', component: () => import('@/views/OrderListView.vue'), meta: { requiresAuth: true } },
   { path: '/orders/:id', component: () => import('@/views/OrderDetailView.vue'), meta: { requiresAuth: true } },
+  { path: '/payment/result', component: () => import('@/views/PaymentResultView.vue') },
   { path: '/login', component: () => import('@/views/LoginView.vue') },
   { path: '/register', component: () => import('@/views/RegisterView.vue') },
   { path: '/seller/shop', component: () => import('@/views/seller/SellerShopView.vue'), meta: { requiresAuth: true, role: 'SELLER' } },
@@ -29,6 +36,10 @@ const routes = [
       { path: 'categories', component: () => import('@/views/admin/AdminCategories.vue') },
       { path: 'shops', component: () => import('@/views/admin/AdminShops.vue') },
       { path: 'orders', component: () => import('@/views/admin/AdminOrders.vue') },
+      { path: 'coupons', component: () => import('@/views/admin/AdminCoupons.vue') },
+      { path: 'membership', component: () => import('@/views/admin/AdminMembershipPlans.vue') },
+      { path: 'refunds', component: () => import('@/views/admin/AdminRefunds.vue') },
+      { path: 'logs', component: () => import('@/views/admin/AdminLogs.vue') },
     ]
   },
 ]
@@ -45,6 +56,9 @@ router.beforeEach((to) => {
   }
   if (to.meta.role && userStore.role !== to.meta.role) {
     return '/'
+  }
+  if (to.path === '/products' && userStore.role === 'SELLER') {
+    return '/seller/products'
   }
 })
 

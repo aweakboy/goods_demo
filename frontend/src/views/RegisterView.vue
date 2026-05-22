@@ -90,8 +90,8 @@ async function handleRegister() {
   text-align: center;
   margin: 0 0 24px;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
   font-weight: 500;
 }
-.auth-link { text-align: center; margin: 0; color: #666; font-size: 14px; }
+.auth-link { text-align: center; margin: 0; color: var(--text-secondary); font-size: 14px; }
 </style>

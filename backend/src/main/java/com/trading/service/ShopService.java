@@ -3,6 +3,7 @@ package com.trading.service;
 import com.trading.common.BusinessException;
 import com.trading.dto.*;
 import com.trading.entity.*;
+import com.trading.enums.AddressValidationStatus;
 import com.trading.enums.ProductStatus;
 import com.trading.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,8 @@ public class ShopService {
     private final ShopRepository shopRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final AddressValidationService addressValidationService;
+    private final ShopFavoriteRepository shopFavoriteRepository;
 
     // --- Seller: manage own shop ---
 
@@ -32,16 +35,26 @@ public class ShopService {
 
     @Transactional
     public ShopResponse register(Long sellerId, ShopRequest req) {
+        validateShopAddress(req);
         if (shopRepository.findBySellerId(sellerId).isPresent()) {
             throw BusinessException.badRequest("您已注册店铺");
         }
         if (shopRepository.existsByName(req.getName())) {
             throw BusinessException.badRequest("店铺名称已存在");
         }
+        AddressValidationResult address = validateAddress(req);
         Shop shop = Shop.builder()
                 .sellerId(sellerId)
                 .name(req.getName())
                 .description(req.getDescription())
+                .province(req.getProvince())
+                .city(req.getCity())
+                .district(req.getDistrict())
+                .detailAddress(req.getDetailAddress())
+                .fullAddress(buildFullAddress(req.getProvince(), req.getCity(), req.getDistrict(), req.getDetailAddress()))
+                .longitude(address.getLongitude())
+                .latitude(address.getLatitude())
+                .addressValidationStatus(AddressValidationStatus.VALID)
                 .status(ProductStatus.ACTIVE)
                 .build();
         return ShopResponse.from(shopRepository.save(shop));
@@ -49,6 +62,7 @@ public class ShopService {
 
     @Transactional
     public ShopResponse update(Long sellerId, ShopRequest req) {
+        validateShopAddress(req);
         Shop shop = shopRepository.findBySellerId(sellerId)
                 .orElseThrow(() -> BusinessException.notFound("尚未注册店铺"));
         if (shopRepository.existsByNameAndIdNot(req.getName(), shop.getId())) {
@@ -58,12 +72,25 @@ public class ShopService {
         if (req.getDescription() != null) {
             shop.setDescription(req.getDescription());
         }
+        AddressValidationResult address = validateAddress(req);
+        shop.setProvince(req.getProvince());
+        shop.setCity(req.getCity());
+        shop.setDistrict(req.getDistrict());
+        shop.setDetailAddress(req.getDetailAddress());
+        shop.setFullAddress(buildFullAddress(req.getProvince(), req.getCity(), req.getDistrict(), req.getDetailAddress()));
+        shop.setLongitude(address.getLongitude());
+        shop.setLatitude(address.getLatitude());
+        shop.setAddressValidationStatus(AddressValidationStatus.VALID);
         return ShopResponse.from(shopRepository.save(shop));
     }
 
     // --- Public: storefront ---
 
     public ShopStorefrontResponse getStorefront(Long shopId, int page, int size) {
+        return getStorefront(shopId, page, size, null);
+    }
+
+    public ShopStorefrontResponse getStorefront(Long shopId, int page, int size, Long buyerId) {
         Shop shop = shopRepository.findById(shopId)
                 .orElseThrow(() -> BusinessException.notFound("店铺不存在"));
         if (shop.getStatus() == ProductStatus.INACTIVE) {
@@ -78,14 +105,32 @@ public class ShopService {
         resp.setName(shop.getName());
         resp.setDescription(shop.getDescription());
         resp.setStatus(shop.getStatus().name());
+        resp.setProvince(shop.getProvince());
+        resp.setCity(shop.getCity());
+        resp.setDistrict(shop.getDistrict());
+        resp.setFullAddress(shop.getFullAddress());
+        resp.setLongitude(shop.getLongitude());
+        resp.setLatitude(shop.getLatitude());
+        resp.setAddressValidationStatus(shop.getAddressValidationStatus() != null ? shop.getAddressValidationStatus().name() : null);
         resp.setCreatedAt(shop.getCreatedAt());
+        resp.setFavorited(buyerId != null && shopFavoriteRepository.existsByBuyerIdAndShopId(buyerId, shop.getId()));
+        resp.setFavoriteCount(shopFavoriteRepository.countByShopId(shop.getId()));
         resp.setProducts(productPage);
         return resp;
     }
 
     public List<ShopResponse> searchShops(String name) {
+        return searchShops(name, null);
+    }
+
+    public List<ShopResponse> searchShops(String name, Long buyerId) {
         return shopRepository.searchActive(name).stream()
-                .map(ShopResponse::from)
+                .map(shop -> {
+                    ShopResponse response = ShopResponse.from(shop);
+                    response.setFavorited(buyerId != null && shopFavoriteRepository.existsByBuyerIdAndShopId(buyerId, shop.getId()));
+                    response.setFavoriteCount(shopFavoriteRepository.countByShopId(shop.getId()));
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -123,5 +168,28 @@ public class ShopService {
         return shopRepository.findBySellerId(sellerId)
                 .filter(s -> s.getStatus() == ProductStatus.ACTIVE)
                 .orElseThrow(() -> BusinessException.badRequest("请先注册店铺"));
+    }
+
+    private String buildFullAddress(String province, String city, String district, String detailAddress) {
+        return String.join("", province.trim(), city.trim(), district.trim(), detailAddress.trim());
+    }
+
+    private void validateShopAddress(ShopRequest req) {
+        if (isBlank(req.getProvince()) || isBlank(req.getCity()) || isBlank(req.getDistrict()) || isBlank(req.getDetailAddress())) {
+            throw BusinessException.badRequest("店铺地址不完整");
+        }
+    }
+
+    private AddressValidationResult validateAddress(ShopRequest req) {
+        return addressValidationService.validateOrThrow(new AddressValidationRequest(
+                req.getProvince(),
+                req.getCity(),
+                req.getDistrict(),
+                req.getDetailAddress()
+        ));
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 }

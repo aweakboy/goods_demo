@@ -1,10 +1,29 @@
-/* Brand variables */
+/* Brand and theme variables */
 :root {
   --brand-primary: #FF6B2B;
   --brand-primary-light: #ff9266;
   --brand-dark: #1A2540;
   --brand-dark-2: #243B55;
   --brand-gradient: linear-gradient(135deg, #1A2540 0%, #243B55 100%);
+
+  --app-bg: #F8F7F5;
+  --surface-bg: #ffffff;
+  --surface-bg-soft: #f5f7fa;
+  --text-primary: #1f2937;
+  --text-secondary: #606266;
+  --text-muted: #909399;
+  --text-inverse: #ffffff;
+  --border-color: #e8e8e8;
+  --border-color-strong: #dcdfe6;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+  --header-bg: var(--brand-gradient);
+  --header-text: #ffffff;
+  --header-text-muted: rgba(255, 255, 255, 0.85);
+  --admin-sidebar-bg: #001529;
+  --admin-sidebar-border: #1d2b3a;
+  --admin-sidebar-text: #b0b8c1;
+  --admin-sidebar-active: #ffffff;
 
   /* Override Element Plus primary color to brand orange */
   --el-color-primary: #FF6B2B;
@@ -14,4 +33,54 @@
   --el-color-primary-light-8: #ffe3d3;
   --el-color-primary-light-9: #fff1eb;
   --el-color-primary-dark-2: #d45420;
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --brand-primary: #FF8C5A;
+  --brand-primary-light: #ffad8a;
+  --brand-dark: #111827;
+  --brand-dark-2: #1f2937;
+  --brand-gradient: linear-gradient(135deg, #111827 0%, #243244 100%);
+
+  --app-bg: #101418;
+  --surface-bg: #181d24;
+  --surface-bg-soft: #202631;
+  --text-primary: #f2f4f8;
+  --text-secondary: #b8c0cc;
+  --text-muted: #8f9bad;
+  --text-inverse: #ffffff;
+  --border-color: #303845;
+  --border-color-strong: #465160;
+  --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+
+  --header-bg: var(--brand-gradient);
+  --header-text: #ffffff;
+  --header-text-muted: rgba(255, 255, 255, 0.82);
+  --admin-sidebar-bg: #0e1726;
+  --admin-sidebar-border: #263247;
+  --admin-sidebar-text: #b8c0cc;
+  --admin-sidebar-active: #ffffff;
+
+  --el-color-primary: #FF8C5A;
+  --el-color-primary-light-3: #e47a4f;
+  --el-color-primary-light-5: #b95f3d;
+  --el-color-primary-light-7: #70412f;
+  --el-color-primary-light-8: #4b3026;
+  --el-color-primary-light-9: #2f211c;
+  --el-color-primary-dark-2: #ffad8a;
+  --el-bg-color: var(--surface-bg);
+  --el-bg-color-page: var(--app-bg);
+  --el-bg-color-overlay: #1f2630;
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-secondary);
+  --el-border-color: var(--border-color);
+  --el-border-color-light: var(--border-color);
+}
+
+html.dark .el-button--primary {
+  --el-button-text-color: #1f130d;
+  --el-button-hover-text-color: #1f130d;
+  --el-button-active-text-color: #1f130d;
 }

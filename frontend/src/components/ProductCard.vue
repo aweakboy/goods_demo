@@ -26,7 +26,7 @@ defineProps({ product: Object })
 }
 .product-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  box-shadow: var(--card-shadow);
   border-left-color: var(--brand-primary);
 }
 .product-img { width: 100%; height: 180px; display: block; }
@@ -45,6 +45,6 @@ defineProps({ product: Object })
   font-weight: 700;
   color: var(--brand-primary);
 }
-.shop-name { margin: 0 0 6px; font-size: 12px; color: #409eff; cursor: pointer; }
+.shop-name { margin: 0 0 6px; font-size: 12px; color: var(--el-color-primary); cursor: pointer; }
 .shop-name:hover { text-decoration: underline; }
 </style>

@@ -84,5 +84,5 @@ onMounted(loadCart)
 
 <style scoped>
 .empty { padding: 60px 0; }
-.cart-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee; }
+.cart-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color); }
 </style>

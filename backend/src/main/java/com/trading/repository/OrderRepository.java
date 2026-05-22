@@ -36,4 +36,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     BigDecimal sumCompletedAmount();
 
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByStatusAndExpiredAtBefore(OrderStatus status, LocalDateTime time);
+
+    List<Order> findByStatus(OrderStatus status);
 }

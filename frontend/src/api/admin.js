@@ -19,4 +19,13 @@ export const adminApi = {
 
   getOrders: (params) => request.get('/admin/orders', { params }),
   getOrderDetail: (id) => request.get(`/admin/orders/${id}`),
+  advanceShipment: (id) => request.post(`/admin/shipments/${id}/simulate/advance`),
+  markShipmentException: (id, reason) => request.post(`/admin/shipments/${id}/simulate/exception`, { reason }),
+  refreshShipmentRoute: (id) => request.post(`/admin/shipments/${id}/route/refresh`),
+
+  refundRequests: () => request.get('/admin/orders/refund-requests'),
+  approveRefund: (id) => request.post(`/admin/orders/${id}/refund-approve`),
+  rejectRefund: (id, reason) => request.post(`/admin/orders/${id}/refund-reject`, { reason }),
+
+  getLogs: (params) => request.get('/admin/logs', { params }),
 }

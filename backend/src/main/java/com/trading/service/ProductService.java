@@ -9,10 +9,12 @@ import com.trading.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +23,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ShopRepository shopRepository;
+    private final PriceAlertService priceAlertService;
 
     public Page<ProductWithShopResponse> searchProducts(Long categoryId, String keyword, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -74,12 +77,14 @@ public class ProductService {
         return productRepository.save(p);
     }
 
+    @Transactional
     public Product updateProduct(Long productId, ProductRequest req, Long sellerId) {
         Product p = productRepository.findById(productId)
                 .orElseThrow(() -> BusinessException.notFound("商品不存在"));
         if (!p.getSellerId().equals(sellerId)) {
             throw BusinessException.forbidden("无权修改他人商品");
         }
+        BigDecimal oldPrice = p.getPrice();
         p.setName(req.getName());
         p.setDescription(req.getDescription());
         p.setPrice(req.getPrice());
@@ -89,7 +94,11 @@ public class ProductService {
         if (req.getStatus() != null) {
             p.setStatus(ProductStatus.valueOf(req.getStatus()));
         }
-        return productRepository.save(p);
+        Product saved = productRepository.save(p);
+        if (oldPrice != null && req.getPrice() != null && req.getPrice().compareTo(oldPrice) < 0) {
+            priceAlertService.processPriceChange(saved.getId(), oldPrice, saved.getPrice());
+        }
+        return saved;
     }
 
     public List<Product> getSellerProducts(Long sellerId) {

@@ -1,5 +1,6 @@
 package com.trading.service;
 
+import com.trading.annotation.OperationLog;
 import com.trading.common.BusinessException;
 import com.trading.dto.*;
 import com.trading.entity.*;
@@ -25,6 +26,7 @@ public class AdminService {
     private final CategoryRepository categoryRepository;
     private final OrderRepository orderRepository;
     private final ShopRepository shopRepository;
+    private final ShipmentService shipmentService;
 
     // --- Overview ---
 
@@ -47,6 +49,7 @@ public class AdminService {
                 .map(AdminUserResponse::from);
     }
 
+    @OperationLog(module = "管理", action = "修改用户状态")
     @Transactional
     public AdminUserResponse updateUserStatus(Long targetId, String newStatus, Long currentAdminId) {
         User target = userRepository.findById(targetId)
@@ -143,7 +146,12 @@ public class AdminService {
         Map<Long, String> buyerNames = userRepository.findAllById(buyerIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getUsername));
 
-        return orders.map(o -> AdminOrderResponse.from(o, buyerNames.getOrDefault(o.getBuyerId(), ""), false));
+        return orders.map(o -> AdminOrderResponse.from(
+                o,
+                buyerNames.getOrDefault(o.getBuyerId(), ""),
+                false,
+                shipmentService != null ? shipmentService.getShipmentResponse(o) : null
+        ));
     }
 
     public AdminOrderResponse getOrderDetail(Long orderId) {
@@ -151,6 +159,11 @@ public class AdminService {
                 .orElseThrow(() -> BusinessException.notFound("订单不存在"));
         String buyerName = userRepository.findById(order.getBuyerId())
                 .map(User::getUsername).orElse("");
-        return AdminOrderResponse.from(order, buyerName, true);
+        return AdminOrderResponse.from(
+                order,
+                buyerName,
+                true,
+                shipmentService != null ? shipmentService.getShipmentResponse(order) : null
+        );
     }
 }

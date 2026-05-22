@@ -1,4 +1,9 @@
-## ADDED Requirements
+# user-auth Specification
+
+## Purpose
+定义用户注册、登录、Token 刷新、登出和基于角色的权限控制能力。
+
+## Requirements
 
 ### Requirement: 用户注册
 系统 SHALL 允许新用户通过用户名、邮箱和密码注册账号，并指定角色（买家或卖家）。

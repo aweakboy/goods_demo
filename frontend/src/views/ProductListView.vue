@@ -115,26 +115,27 @@ onMounted(async () => {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
-  color: #fff;
+  color: var(--header-text);
   letter-spacing: 1px;
 }
 .hero-sub {
   margin: 0;
   font-size: 14px;
-  color: rgba(255,255,255,0.75);
+  color: var(--header-text-muted);
   letter-spacing: 2px;
 }
 .filter-card {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  background: #fff;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 16px 24px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: var(--card-shadow);
   margin-bottom: 20px;
 }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 .loading-wrap { padding: 40px 0; }
-.empty { text-align: center; padding: 60px; color: #999; }
+.empty { text-align: center; padding: 60px; color: var(--text-muted); }
 </style>

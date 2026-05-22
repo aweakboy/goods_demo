@@ -20,8 +20,18 @@
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="图片URL">
-          <el-input v-model="form.imageUrl" placeholder="可选" />
+        <el-form-item label="商品图片">
+          <el-upload
+            :file-list="imageFileList"
+            list-type="picture-card"
+            :limit="1"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            :http-request="handleUpload"
+            :on-exceed="() => ElMessage.warning('只能上传一张图片')"
+            :on-remove="handleRemove"
+          >
+            <el-icon><Plus /></el-icon>
+          </el-upload>
         </el-form-item>
         <el-form-item v-if="isEdit" label="状态">
           <el-select v-model="form.status">
@@ -42,6 +52,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import { productApi } from '@/api/product'
 
 const route = useRoute()
@@ -56,6 +67,23 @@ const rules = {
   name: [{ required: true, message: '请输入商品名称', trigger: 'blur' }],
   price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
   stock: [{ required: true, message: '请输入库存', trigger: 'blur' }]
+}
+
+const imageFileList = ref([])
+
+async function handleUpload({ file }) {
+  try {
+    const url = await productApi.uploadImage(file)
+    form.imageUrl = url
+    imageFileList.value = [{ name: file.name, url: `http://localhost:8080${url}` }]
+  } catch (err) {
+    ElMessage.error(err?.message || '图片上传失败')
+  }
+}
+
+function handleRemove() {
+  form.imageUrl = ''
+  imageFileList.value = []
 }
 
 async function submit() {
@@ -82,6 +110,12 @@ onMounted(async () => {
   if (isEdit.value) {
     const res = await productApi.detail(route.params.id)
     Object.assign(form, res.data)
+    if (res.data.imageUrl) {
+      const src = res.data.imageUrl.startsWith('http')
+        ? res.data.imageUrl
+        : `http://localhost:8080${res.data.imageUrl}`
+      imageFileList.value = [{ name: '当前图片', url: src }]
+    }
   }
 })
 </script>

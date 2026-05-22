@@ -9,7 +9,20 @@
       "Bash(xargs cat *)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Progress: {d[\\\\\"progress\\\\\"][\\\\\"complete\\\\\"]}/{d[\\\\\"progress\\\\\"][\\\\\"total\\\\\"]}'\\); print\\('State:', d['state']\\)\")",
       "Bash(xargs ls *)",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Bash(openspec list *)",
+      "Bash(python3 *)",
+      "Bash(where openspec *)",
+      "Bash(openspec.cmd new *)",
+      "Bash(openspec.cmd status *)",
+      "Bash(openspec.cmd instructions *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'Progress: {d[\\\\\"progress\\\\\"][\\\\\"complete\\\\\"]}/{d[\\\\\"progress\\\\\"][\\\\\"total\\\\\"]}'\\); [print\\(f' [{\\\\\"x\\\\\" if t[\\\\\"done\\\\\"] else \\\\\" \\\\\"}] {t[\\\\\"description\\\\\"][:60]}'\\) for t in d['tasks']]\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['instruction'][:500]\\); print\\('---TEMPLATE---'\\); print\\(d['template']\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['template']\\)\")",
+      "Bash(openspec status *)",
+      "Bash(node node_modules/.bin/openspec status --change \"logging-management\" --json)",
+      "WebSearch",
+      "Bash(openspec *)"
     ]
   }
 }
