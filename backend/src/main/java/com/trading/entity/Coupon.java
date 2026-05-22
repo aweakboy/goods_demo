@@ -58,6 +58,10 @@ public class Coupon {
     @Column(nullable = false, length = 20)
     private CouponAudience audience = CouponAudience.PUBLIC;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean stackable = false;
+
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
 

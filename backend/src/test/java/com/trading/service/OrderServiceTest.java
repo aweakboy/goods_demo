@@ -6,6 +6,7 @@ import com.trading.dto.OrderRequest;
 import com.trading.entity.*;
 import com.trading.enums.AddressValidationStatus;
 import com.trading.enums.BuyerCouponStatus;
+import com.trading.enums.CouponAudience;
 import com.trading.enums.CouponStatus;
 import com.trading.enums.OrderStatus;
 import com.trading.repository.*;
@@ -35,6 +36,7 @@ class OrderServiceTest {
     @Mock BuyerCouponService buyerCouponService;
     @Mock MembershipService membershipService;
     @Mock ShipmentService shipmentService;
+    @Mock OrderCouponUsageRepository orderCouponUsageRepository;
 
     @InjectMocks OrderService orderService;
 
@@ -86,6 +88,19 @@ class OrderServiceTest {
 
         assertEquals(400, ex.getStatus());
         assertTrue(ex.getMessage().contains("收货信息不完整"));
+    }
+
+    @Test
+    void createOrder_legacyAndNewCouponFields_throwsBadRequest() {
+        OrderRequest req = structuredAddressRequest();
+        req.setBuyerCouponId(300L);
+        req.setBuyerCouponIds(List.of(301L));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> orderService.createOrder(1L, req));
+
+        assertEquals(400, ex.getStatus());
+        assertTrue(ex.getMessage().contains("不能同时提交"));
+        verify(cartItemRepository, never()).findByBuyerId(anyLong());
     }
 
     @Test
@@ -223,6 +238,140 @@ class OrderServiceTest {
         assertEquals(2, product.getStock());
         verify(buyerCouponService).markUsed(usage, 3000L);
         verify(cartItemRepository).deleteByBuyerIdAndProductIdIn(1L, List.of(10L));
+    }
+
+    @Test
+    void createOrder_withTwoStackableCoupons_savesUsageDetailsAndTotalDiscount() {
+        CartItem cartItem = CartItem.builder().id(1L).buyerId(1L).productId(10L).quantity(5).build();
+        Product product = Product.builder()
+                .id(10L)
+                .sellerId(20L)
+                .name("商品A")
+                .price(BigDecimal.TEN)
+                .stock(6)
+                .version(0)
+                .build();
+        OrderRequest req = structuredAddressRequest();
+        req.setBuyerCouponIds(List.of(300L, 301L));
+        Order[] saved = new Order[1];
+        BuyerCouponService.CouponUsagePlan plan = multiCouponPlan(
+                BigDecimal.valueOf(10),
+                BigDecimal.valueOf(7)
+        );
+
+        when(cartItemRepository.findByBuyerId(1L)).thenReturn(List.of(cartItem));
+        when(addressValidationService.validateOrThrow(any())).thenReturn(validAddress());
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(shopRepository.findBySellerId(20L)).thenReturn(Optional.empty());
+        when(buyerCouponService.prepareForOrder(1L, List.of(300L, 301L), BigDecimal.valueOf(50))).thenReturn(plan);
+        when(orderCouponUsageRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> {
+            saved[0] = i.getArgument(0);
+            saved[0].setId(3600L);
+            return saved[0];
+        });
+        when(orderItemRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.findById(3600L)).thenAnswer(i -> Optional.of(saved[0]));
+
+        Order order = orderService.createOrder(1L, req);
+
+        assertEquals(BigDecimal.valueOf(50), order.getOriginalAmount());
+        assertEquals(BigDecimal.valueOf(17), order.getDiscountAmount());
+        assertEquals(BigDecimal.valueOf(33), order.getTotalAmount());
+        assertEquals(2, order.getCouponUsages().size());
+        assertEquals(CouponAudience.PUBLIC, order.getCouponUsages().get(0).getAudience());
+        assertEquals(CouponAudience.MEMBER, order.getCouponUsages().get(1).getAudience());
+        assertEquals(BigDecimal.valueOf(7), order.getCouponUsages().get(1).getAppliedDiscountAmount());
+        verify(buyerCouponService).markUsed(plan, 3600L);
+        verify(buyerCouponService, never()).markUsed(any(BuyerCouponService.CouponUsage.class), anyLong());
+    }
+
+    @Test
+    void createOrder_withTwoCoupons_appliesMembershipDiscountAfterCoupons() {
+        CartItem cartItem = CartItem.builder().id(1L).buyerId(1L).productId(10L).quantity(5).build();
+        Product product = Product.builder()
+                .id(10L)
+                .sellerId(20L)
+                .name("商品A")
+                .price(BigDecimal.TEN)
+                .stock(6)
+                .version(0)
+                .build();
+        OrderRequest req = structuredAddressRequest();
+        req.setBuyerCouponIds(List.of(300L, 301L));
+        Order[] saved = new Order[1];
+        BuyerCouponService.CouponUsagePlan plan = multiCouponPlan(
+                BigDecimal.valueOf(10),
+                BigDecimal.valueOf(7)
+        );
+
+        when(cartItemRepository.findByBuyerId(1L)).thenReturn(List.of(cartItem));
+        when(addressValidationService.validateOrThrow(any())).thenReturn(validAddress());
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(shopRepository.findBySellerId(20L)).thenReturn(Optional.empty());
+        when(buyerCouponService.prepareForOrder(1L, List.of(300L, 301L), BigDecimal.valueOf(50))).thenReturn(plan);
+        when(membershipService.prepareOrderDiscount(1L, BigDecimal.valueOf(33)))
+                .thenReturn(new MembershipService.OrderMembershipDiscount(
+                        7L,
+                        "Gold",
+                        BigDecimal.valueOf(0.90),
+                        new BigDecimal("3.30")
+                ));
+        when(orderCouponUsageRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> {
+            saved[0] = i.getArgument(0);
+            saved[0].setId(3700L);
+            return saved[0];
+        });
+        when(orderItemRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.findById(3700L)).thenAnswer(i -> Optional.of(saved[0]));
+
+        Order order = orderService.createOrder(1L, req);
+
+        assertEquals(BigDecimal.valueOf(17), order.getDiscountAmount());
+        assertEquals(new BigDecimal("3.30"), order.getMembershipDiscountAmount());
+        assertEquals(new BigDecimal("29.70"), order.getTotalAmount());
+        verify(membershipService).prepareOrderDiscount(1L, BigDecimal.valueOf(33));
+    }
+
+    @Test
+    void createOrder_withTwoCoupons_clampsPayableAmountAtZero() {
+        CartItem cartItem = CartItem.builder().id(1L).buyerId(1L).productId(10L).quantity(3).build();
+        Product product = Product.builder()
+                .id(10L)
+                .sellerId(20L)
+                .name("商品A")
+                .price(BigDecimal.TEN)
+                .stock(5)
+                .version(0)
+                .build();
+        OrderRequest req = structuredAddressRequest();
+        req.setBuyerCouponIds(List.of(300L, 301L));
+        Order[] saved = new Order[1];
+        BuyerCouponService.CouponUsagePlan plan = multiCouponPlan(
+                BigDecimal.valueOf(20),
+                BigDecimal.valueOf(20)
+        );
+
+        when(cartItemRepository.findByBuyerId(1L)).thenReturn(List.of(cartItem));
+        when(addressValidationService.validateOrThrow(any())).thenReturn(validAddress());
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(shopRepository.findBySellerId(20L)).thenReturn(Optional.empty());
+        when(buyerCouponService.prepareForOrder(1L, List.of(300L, 301L), BigDecimal.valueOf(30))).thenReturn(plan);
+        when(orderCouponUsageRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> {
+            saved[0] = i.getArgument(0);
+            saved[0].setId(3800L);
+            return saved[0];
+        });
+        when(orderItemRepository.saveAll(anyList())).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.findById(3800L)).thenAnswer(i -> Optional.of(saved[0]));
+
+        Order order = orderService.createOrder(1L, req);
+
+        assertEquals(BigDecimal.valueOf(40), order.getDiscountAmount());
+        assertEquals(BigDecimal.ZERO, order.getTotalAmount());
+        verify(membershipService).prepareOrderDiscount(1L, BigDecimal.ZERO);
     }
 
     @Test
@@ -452,7 +601,8 @@ class OrderServiceTest {
         verify(productRepository, never()).save(any());
         verify(orderRepository, never()).save(any());
         verify(membershipService, never()).prepareOrderDiscount(anyLong(), any());
-        verify(buyerCouponService, never()).markUsed(any(), anyLong());
+        verify(buyerCouponService, never()).markUsed(any(BuyerCouponService.CouponUsage.class), anyLong());
+        verify(buyerCouponService, never()).markUsed(any(BuyerCouponService.CouponUsagePlan.class), anyLong());
         verify(cartItemRepository, never()).deleteByBuyerIdAndProductIdIn(anyLong(), anyList());
     }
 
@@ -478,7 +628,8 @@ class OrderServiceTest {
 
         assertEquals(400, ex.getStatus());
         verify(buyerCouponService, never()).prepareForOrder(anyLong(), anyLong(), any());
-        verify(buyerCouponService, never()).markUsed(any(), anyLong());
+        verify(buyerCouponService, never()).markUsed(any(BuyerCouponService.CouponUsage.class), anyLong());
+        verify(buyerCouponService, never()).markUsed(any(BuyerCouponService.CouponUsagePlan.class), anyLong());
     }
 
     @Test
@@ -585,6 +736,25 @@ class OrderServiceTest {
     }
 
     @Test
+    void cancel_withCouponUsageDetails_releasesAllCoupons() {
+        OrderItem item = OrderItem.builder().productId(10L).quantity(1).build();
+        Order order = couponOrder(OrderStatus.PENDING_PAYMENT);
+        order.setItems(List.of(item));
+        Product product = Product.builder().id(10L).stock(5).build();
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(orderCouponUsageRepository.findByOrderIdOrderByIdAsc(1L))
+                .thenReturn(List.of(orderCouponUsage(300L), orderCouponUsage(301L)));
+        when(orderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        Order result = orderService.cancel(1L, 1L);
+
+        assertEquals(OrderStatus.CANCELLED, result.getStatus());
+        verify(buyerCouponService).releaseForOrder(List.of(300L, 301L), 1L);
+        verify(buyerCouponService, never()).releaseForOrder(300L, 1L);
+    }
+
+    @Test
     void cancel_withoutCoupon_doesNotReleaseCoupon() {
         OrderItem item = OrderItem.builder().productId(10L).quantity(2).build();
         Order order = Order.builder().id(1L).buyerId(1L).status(OrderStatus.PENDING_PAYMENT)
@@ -596,7 +766,8 @@ class OrderServiceTest {
 
         orderService.cancel(1L, 1L);
 
-        verify(buyerCouponService, never()).releaseForOrder(any(), any());
+        verify(buyerCouponService, never()).releaseForOrder(anyLong(), anyLong());
+        verify(buyerCouponService, never()).releaseForOrder(anyList(), anyLong());
     }
 
     @Test
@@ -608,7 +779,8 @@ class OrderServiceTest {
         Order result = orderService.requestRefund(1L, 1L, "商品问题");
 
         assertEquals(OrderStatus.REFUND_REQUESTED, result.getStatus());
-        verify(buyerCouponService, never()).releaseForOrder(any(), any());
+        verify(buyerCouponService, never()).releaseForOrder(anyLong(), anyLong());
+        verify(buyerCouponService, never()).releaseForOrder(anyList(), anyLong());
     }
 
     @Test
@@ -626,6 +798,22 @@ class OrderServiceTest {
     }
 
     @Test
+    void approveRefund_withCouponUsageDetails_releasesAllCouponsAfterPaymentRefundSuccess() {
+        Order order = couponOrder(OrderStatus.REFUND_REQUESTED);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderCouponUsageRepository.findByOrderIdOrderByIdAsc(1L))
+                .thenReturn(List.of(orderCouponUsage(300L), orderCouponUsage(301L)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+        Order result = orderService.approveRefund(1L);
+
+        assertEquals(OrderStatus.REFUNDED, result.getStatus());
+        verify(paymentService).refund("trade-1", BigDecimal.valueOf(25), "1-refund");
+        verify(buyerCouponService).releaseForOrder(List.of(300L, 301L), 1L);
+        verify(buyerCouponService, never()).releaseForOrder(300L, 1L);
+    }
+
+    @Test
     void rejectRefund_withCoupon_keepsCouponUsed() {
         Order order = couponOrder(OrderStatus.REFUND_REQUESTED);
         when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
@@ -634,7 +822,8 @@ class OrderServiceTest {
         Order result = orderService.rejectRefund(1L, "不符合退款条件");
 
         assertEquals(OrderStatus.REFUND_REJECTED, result.getStatus());
-        verify(buyerCouponService, never()).releaseForOrder(any(), any());
+        verify(buyerCouponService, never()).releaseForOrder(anyLong(), anyLong());
+        verify(buyerCouponService, never()).releaseForOrder(anyList(), anyLong());
     }
 
     @Test
@@ -647,7 +836,8 @@ class OrderServiceTest {
         assertThrows(RuntimeException.class, () -> orderService.approveRefund(1L));
 
         assertEquals(OrderStatus.REFUND_REQUESTED, order.getStatus());
-        verify(buyerCouponService, never()).releaseForOrder(any(), any());
+        verify(buyerCouponService, never()).releaseForOrder(anyLong(), anyLong());
+        verify(buyerCouponService, never()).releaseForOrder(anyList(), anyLong());
         verify(orderRepository, never()).save(any());
     }
 
@@ -744,6 +934,48 @@ class OrderServiceTest {
                 BigDecimal.valueOf(5),
                 BigDecimal.valueOf(5)
         );
+    }
+
+    private BuyerCouponService.CouponUsagePlan multiCouponPlan(BigDecimal publicDiscount, BigDecimal memberDiscount) {
+        return new BuyerCouponService.CouponUsagePlan(List.of(
+                couponUsage(200L, 300L, "普通券", publicDiscount, CouponAudience.PUBLIC),
+                couponUsage(201L, 301L, "会员券", memberDiscount, CouponAudience.MEMBER)
+        ));
+    }
+
+    private BuyerCouponService.CouponUsage couponUsage(Long couponId, Long buyerCouponId, String name,
+                                                       BigDecimal appliedDiscount, CouponAudience audience) {
+        BuyerCoupon buyerCoupon = BuyerCoupon.builder()
+                .id(buyerCouponId)
+                .buyerId(1L)
+                .couponId(couponId)
+                .status(BuyerCouponStatus.UNUSED)
+                .build();
+        return new BuyerCouponService.CouponUsage(
+                buyerCoupon,
+                couponId,
+                buyerCouponId,
+                name,
+                BigDecimal.valueOf(30),
+                appliedDiscount,
+                appliedDiscount,
+                audience,
+                true
+        );
+    }
+
+    private OrderCouponUsage orderCouponUsage(Long buyerCouponId) {
+        return OrderCouponUsage.builder()
+                .orderId(1L)
+                .couponId(buyerCouponId + 1000)
+                .buyerCouponId(buyerCouponId)
+                .couponName("券" + buyerCouponId)
+                .audience(buyerCouponId == 301L ? CouponAudience.MEMBER : CouponAudience.PUBLIC)
+                .stackable(true)
+                .thresholdAmount(BigDecimal.valueOf(30))
+                .couponDiscountAmount(BigDecimal.valueOf(5))
+                .appliedDiscountAmount(BigDecimal.valueOf(5))
+                .build();
     }
 
     private Order couponOrder(OrderStatus status) {

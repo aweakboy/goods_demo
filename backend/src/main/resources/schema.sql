@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS coupons (
     valid_to TIMESTAMP NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     audience VARCHAR(20) NOT NULL DEFAULT 'PUBLIC',
+    stackable BOOLEAN NOT NULL DEFAULT FALSE,
     created_by BIGINT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -144,6 +145,25 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity INT NOT NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id),
     FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE TABLE IF NOT EXISTS order_coupon_usages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    order_id BIGINT NOT NULL,
+    coupon_id BIGINT NOT NULL,
+    buyer_coupon_id BIGINT NOT NULL,
+    coupon_name VARCHAR(100) NOT NULL,
+    audience VARCHAR(20) NOT NULL,
+    stackable BOOLEAN NOT NULL DEFAULT FALSE,
+    threshold_amount DECIMAL(12,2) NOT NULL,
+    coupon_discount_amount DECIMAL(12,2) NOT NULL,
+    applied_discount_amount DECIMAL(12,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_order_coupon_usages_order (order_id),
+    INDEX idx_order_coupon_usages_buyer_coupon (buyer_coupon_id),
+    FOREIGN KEY (order_id) REFERENCES orders(id),
+    FOREIGN KEY (coupon_id) REFERENCES coupons(id),
+    FOREIGN KEY (buyer_coupon_id) REFERENCES buyer_coupons(id)
 );
 
 CREATE TABLE IF NOT EXISTS membership_plans (
@@ -364,6 +384,8 @@ INSERT IGNORE INTO categories (name) VALUES ('电子产品'),('服装'),('食品
 -- ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_threshold_amount DECIMAL(12,2);
 -- ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_discount_amount DECIMAL(12,2);
 -- ALTER TABLE coupons ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'PUBLIC';
+-- ALTER TABLE coupons ADD COLUMN IF NOT EXISTS stackable BOOLEAN NOT NULL DEFAULT FALSE;
+-- CREATE TABLE IF NOT EXISTS order_coupon_usages (... see definition above ...);
 -- ALTER TABLE orders ADD COLUMN IF NOT EXISTS membership_plan_id BIGINT;
 -- ALTER TABLE orders ADD COLUMN IF NOT EXISTS membership_plan_name VARCHAR(100);
 -- ALTER TABLE orders ADD COLUMN IF NOT EXISTS membership_discount_rate DECIMAL(5,4);

@@ -18,6 +18,9 @@ public class OrderRequest {
     @Min(value = 1, message = "优惠券ID不正确")
     private Long buyerCouponId;
 
+    @Size(max = 2, message = "最多只能选择2张优惠券")
+    private List<@Min(value = 1, message = "优惠券ID不正确") Long> buyerCouponIds;
+
     @Size(max = 500, message = "收货地址最多500个字符")
     private String address;
 

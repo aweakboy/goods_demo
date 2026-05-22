@@ -122,6 +122,9 @@ public class Order {
     @Transient
     private ShipmentResponse shipment;
 
+    @Transient
+    private List<OrderCouponUsage> couponUsages;
+
     @PrePersist
     private void prePersist() { createdAt = LocalDateTime.now(); }
 }

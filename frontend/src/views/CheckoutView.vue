@@ -20,28 +20,57 @@
 
     <el-card style="margin-bottom:20px">
       <h3>优惠券</h3>
-      <div class="coupon-select-row">
+      <div class="coupon-select-row coupon-select-grid">
         <el-select
-          v-model="selectedBuyerCouponId"
+          v-model="selectedPublicCouponId"
           clearable
           filterable
-          placeholder="选择可用优惠券"
-          @change="handleCouponChange"
+          placeholder="选择普通优惠券"
+          @change="handleCouponChange('PUBLIC')"
         >
           <el-option
-            v-for="coupon in usableCoupons"
+            v-for="coupon in publicCoupons"
             :key="coupon.id"
             :label="couponOptionLabel(coupon)"
             :value="coupon.id"
-            :disabled="!couponEligible(coupon)"
+            :disabled="couponOptionDisabled(coupon, 'PUBLIC')"
           >
             <div class="coupon-option">
               <span>{{ couponOptionLabel(coupon) }}</span>
-              <el-tag v-if="!couponEligible(coupon)" size="small" type="warning">未达门槛</el-tag>
+              <el-tag v-if="couponOptionReason(coupon, 'PUBLIC')" size="small" type="warning">
+                {{ couponOptionReason(coupon, 'PUBLIC') }}
+              </el-tag>
+            </div>
+          </el-option>
+        </el-select>
+        <el-select
+          v-model="selectedMemberCouponId"
+          clearable
+          filterable
+          placeholder="选择会员专属券"
+          @change="handleCouponChange('MEMBER')"
+        >
+          <el-option
+            v-for="coupon in memberCoupons"
+            :key="coupon.id"
+            :label="couponOptionLabel(coupon)"
+            :value="coupon.id"
+            :disabled="couponOptionDisabled(coupon, 'MEMBER')"
+          >
+            <div class="coupon-option">
+              <span>{{ couponOptionLabel(coupon) }}</span>
+              <el-tag v-if="couponOptionReason(coupon, 'MEMBER')" size="small" type="warning">
+                {{ couponOptionReason(coupon, 'MEMBER') }}
+              </el-tag>
             </div>
           </el-option>
         </el-select>
         <el-button @click="$router.push('/coupons')">去领券</el-button>
+      </div>
+      <div v-if="selectedCouponDetails.length" class="coupon-breakdown">
+        <span v-for="detail in selectedCouponDetails" :key="detail.coupon.id">
+          {{ audienceLabel(detail.coupon.audience) }} {{ detail.coupon.couponName }}：-¥{{ amountText(detail.appliedDiscount) }}
+        </span>
       </div>
       <div class="amount-preview">
         <span>商品金额：¥{{ amountText(originalAmount) }}</span>
@@ -50,10 +79,10 @@
         <strong>应付：¥{{ amountText(payableAmount) }}</strong>
       </div>
       <el-alert
-        v-if="selectedCoupon && !selectedCouponEligible"
+        v-if="couponCombinationError"
         type="warning"
         :closable="false"
-        title="当前订单金额未达到该优惠券使用门槛"
+        :title="couponCombinationError"
         style="margin-top:10px"
       />
     </el-card>
@@ -137,7 +166,8 @@ const saveAddressLoading = ref(false)
 const addresses = ref([])
 const selectedAddressId = ref(null)
 const usableCoupons = ref([])
-const selectedBuyerCouponId = ref(null)
+const selectedPublicCouponId = ref(null)
+const selectedMemberCouponId = ref(null)
 const membershipStatus = ref({})
 const form = reactive({
   receiverName: '',
@@ -160,11 +190,33 @@ const rules = {
 }
 
 const originalAmount = computed(() => Number(cartStore.total || 0))
-const selectedCoupon = computed(() => usableCoupons.value.find(item => item.id === selectedBuyerCouponId.value))
-const selectedCouponEligible = computed(() => !selectedCoupon.value || couponEligible(selectedCoupon.value))
+const publicCoupons = computed(() => usableCoupons.value.filter(item => item.audience !== 'MEMBER'))
+const memberCoupons = computed(() => usableCoupons.value.filter(item => item.audience === 'MEMBER'))
+const selectedPublicCoupon = computed(() => publicCoupons.value.find(item => item.id === selectedPublicCouponId.value))
+const selectedMemberCoupon = computed(() => memberCoupons.value.find(item => item.id === selectedMemberCouponId.value))
+const selectedCoupons = computed(() => [selectedPublicCoupon.value, selectedMemberCoupon.value].filter(Boolean))
+const couponCombinationError = computed(() => {
+  const ineligible = selectedCoupons.value.find(coupon => !couponEligible(coupon))
+  if (ineligible) {
+    return `${ineligible.couponName} 未达到使用门槛`
+  }
+  if (selectedCoupons.value.length === 2
+      && selectedCoupons.value.some(coupon => !coupon.stackable)) {
+    return '普通券和会员专属券叠加使用时，两张券都必须允许叠加'
+  }
+  return ''
+})
+const selectedCouponDetails = computed(() => {
+  if (couponCombinationError.value) return []
+  let remaining = originalAmount.value
+  return selectedCoupons.value.map(coupon => {
+    const appliedDiscount = Math.min(Number(coupon.discountAmount || 0), remaining)
+    remaining = Math.max(0, remaining - appliedDiscount)
+    return { coupon, appliedDiscount }
+  })
+})
 const selectedDiscount = computed(() => {
-  if (!selectedCoupon.value || !selectedCouponEligible.value) return 0
-  return Math.min(Number(selectedCoupon.value.discountAmount || 0), originalAmount.value)
+  return selectedCouponDetails.value.reduce((sum, detail) => sum + detail.appliedDiscount, 0)
 })
 const membershipActive = computed(() => membershipStatus.value?.member && Number(membershipStatus.value.discountRate || 1) < 1)
 const amountAfterCoupon = computed(() => Math.max(0, originalAmount.value - selectedDiscount.value))
@@ -182,8 +234,24 @@ function couponEligible(coupon) {
   return originalAmount.value >= Number(coupon.thresholdAmount || 0)
 }
 
+function couponOptionReason(coupon, audience) {
+  if (!couponEligible(coupon)) return '未达门槛'
+  const other = audience === 'MEMBER' ? selectedPublicCoupon.value : selectedMemberCoupon.value
+  if (other && (!coupon.stackable || !other.stackable)) return '不可叠加'
+  return ''
+}
+
+function couponOptionDisabled(coupon, audience) {
+  return Boolean(couponOptionReason(coupon, audience))
+}
+
 function couponOptionLabel(coupon) {
-  return `${coupon.couponName} 满${amountText(coupon.thresholdAmount)}减${amountText(coupon.discountAmount)}`
+  const stackableText = coupon.stackable ? '可叠加' : '不可叠加'
+  return `${coupon.couponName} 满${amountText(coupon.thresholdAmount)}减${amountText(coupon.discountAmount)} ${stackableText}`
+}
+
+function audienceLabel(audience) {
+  return audience === 'MEMBER' ? '会员券' : '普通券'
 }
 
 function addressOptionLabel(address) {
@@ -224,8 +292,11 @@ async function loadCoupons() {
   try {
     const res = await couponApi.usable()
     usableCoupons.value = res.data || []
-    if (selectedBuyerCouponId.value && !usableCoupons.value.some(item => item.id === selectedBuyerCouponId.value)) {
-      selectedBuyerCouponId.value = null
+    if (selectedPublicCouponId.value && !publicCoupons.value.some(item => item.id === selectedPublicCouponId.value)) {
+      selectedPublicCouponId.value = null
+    }
+    if (selectedMemberCouponId.value && !memberCoupons.value.some(item => item.id === selectedMemberCouponId.value)) {
+      selectedMemberCouponId.value = null
     }
   } catch (err) {
     ElMessage.error(err?.message || '优惠券加载失败')
@@ -241,10 +312,14 @@ async function loadMembershipStatus() {
   }
 }
 
-function handleCouponChange(id) {
+function handleCouponChange(audience) {
+  const id = audience === 'MEMBER' ? selectedMemberCouponId.value : selectedPublicCouponId.value
   const coupon = usableCoupons.value.find(item => item.id === id)
   if (coupon && !couponEligible(coupon)) {
     ElMessage.warning('当前订单金额未达到该优惠券使用门槛')
+  }
+  if (couponCombinationError.value) {
+    ElMessage.warning(couponCombinationError.value)
   }
 }
 
@@ -291,8 +366,8 @@ async function saveCurrentAddress() {
 
 async function submitOrder() {
   await formRef.value.validate()
-  if (selectedCoupon.value && !selectedCouponEligible.value) {
-    ElMessage.warning('当前订单金额未达到优惠券使用门槛')
+  if (couponCombinationError.value) {
+    ElMessage.warning(couponCombinationError.value)
     return
   }
   loading.value = true
@@ -301,8 +376,9 @@ async function submitOrder() {
     if (selectedAddressId.value) {
       payload.addressId = selectedAddressId.value
     }
-    if (selectedBuyerCouponId.value) {
-      payload.buyerCouponId = selectedBuyerCouponId.value
+    const buyerCouponIds = selectedCoupons.value.map(coupon => coupon.id)
+    if (buyerCouponIds.length > 0) {
+      payload.buyerCouponIds = buyerCouponIds
     }
     const res = await orderApi.create(payload)
     cartStore.clear()
@@ -348,6 +424,9 @@ onMounted(() => {
   gap: 10px;
   width: 100%;
 }
+.coupon-select-grid {
+  align-items: center;
+}
 .coupon-select-row .el-select {
   flex: 1;
 }
@@ -370,6 +449,15 @@ onMounted(() => {
   margin-top: 12px;
   font-size: 15px;
 }
+.coupon-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
 .amount-preview strong {
   color: #f56c6c;
   font-size: 18px;
@@ -377,8 +465,10 @@ onMounted(() => {
 @media (max-width: 640px) {
   .address-select-row,
   .coupon-select-row,
+  .coupon-breakdown,
   .amount-preview {
     flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

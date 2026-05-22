@@ -42,4 +42,6 @@ public class CouponRequest {
     private CouponStatus status;
 
     private CouponAudience audience;
+
+    private Boolean stackable;
 }

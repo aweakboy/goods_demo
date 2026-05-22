@@ -40,6 +40,7 @@ public class CouponAdminService {
                 .validTo(request.getValidTo())
                 .status(request.getStatus() != null ? request.getStatus() : CouponStatus.ACTIVE)
                 .audience(request.getAudience() != null ? request.getAudience() : CouponAudience.PUBLIC)
+                .stackable(Boolean.TRUE.equals(request.getStackable()))
                 .createdBy(adminId)
                 .build();
         return couponRepository.save(coupon);
@@ -62,6 +63,7 @@ public class CouponAdminService {
             coupon.setStatus(request.getStatus());
         }
         coupon.setAudience(request.getAudience() != null ? request.getAudience() : CouponAudience.PUBLIC);
+        coupon.setStackable(Boolean.TRUE.equals(request.getStackable()));
         return couponRepository.save(coupon);
     }
 

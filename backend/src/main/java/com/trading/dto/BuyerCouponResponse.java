@@ -3,6 +3,7 @@ package com.trading.dto;
 import com.trading.entity.BuyerCoupon;
 import com.trading.entity.Coupon;
 import com.trading.enums.BuyerCouponStatus;
+import com.trading.enums.CouponAudience;
 import com.trading.enums.CouponStatus;
 import lombok.Builder;
 import lombok.Data;
@@ -19,6 +20,8 @@ public class BuyerCouponResponse {
     private String description;
     private BigDecimal thresholdAmount;
     private BigDecimal discountAmount;
+    private CouponAudience audience;
+    private Boolean stackable;
     private LocalDateTime validFrom;
     private LocalDateTime validTo;
     private CouponStatus couponStatus;
@@ -36,6 +39,8 @@ public class BuyerCouponResponse {
                 .description(coupon != null ? coupon.getDescription() : null)
                 .thresholdAmount(coupon != null ? coupon.getThresholdAmount() : null)
                 .discountAmount(coupon != null ? coupon.getDiscountAmount() : null)
+                .audience(coupon != null ? coupon.getAudience() : null)
+                .stackable(coupon != null && Boolean.TRUE.equals(coupon.getStackable()))
                 .validFrom(coupon != null ? coupon.getValidFrom() : null)
                 .validTo(coupon != null ? coupon.getValidTo() : null)
                 .couponStatus(coupon != null ? coupon.getStatus() : null)

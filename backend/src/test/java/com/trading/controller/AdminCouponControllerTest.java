@@ -52,9 +52,10 @@ class AdminCouponControllerTest {
                 .thenReturn(new PageImpl<>(List.of(validCoupon()), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/v1/admin/coupons")
-                        .with(SecurityMockMvcRequestPostProcessors.user(adminPrincipal())))
+                .with(SecurityMockMvcRequestPostProcessors.user(adminPrincipal())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].id").value(1));
+                .andExpect(jsonPath("$.data.content[0].id").value(1))
+                .andExpect(jsonPath("$.data.content[0].stackable").value(false));
     }
 
     @Test
@@ -67,7 +68,8 @@ class AdminCouponControllerTest {
                         .content(objectMapper.writeValueAsString(validRequest())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(201))
-                .andExpect(jsonPath("$.data.name").value("满100减10"));
+                .andExpect(jsonPath("$.data.name").value("满100减10"))
+                .andExpect(jsonPath("$.data.stackable").value(false));
     }
 
     @Test

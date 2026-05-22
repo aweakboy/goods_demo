@@ -22,6 +22,7 @@ public class AdminOrderResponse {
     private String couponName;
     private BigDecimal couponThresholdAmount;
     private BigDecimal couponDiscountAmount;
+    private List<OrderCouponUsageResponse> couponUsages;
     private Long membershipPlanId;
     private String membershipPlanName;
     private BigDecimal membershipDiscountRate;
@@ -67,6 +68,11 @@ public class AdminOrderResponse {
         r.couponName = o.getCouponName();
         r.couponThresholdAmount = o.getCouponThresholdAmount();
         r.couponDiscountAmount = o.getCouponDiscountAmount();
+        if (o.getCouponUsages() != null && !o.getCouponUsages().isEmpty()) {
+            r.couponUsages = o.getCouponUsages().stream()
+                    .map(OrderCouponUsageResponse::from)
+                    .collect(Collectors.toList());
+        }
         r.membershipPlanId = o.getMembershipPlanId();
         r.membershipPlanName = o.getMembershipPlanName();
         r.membershipDiscountRate = o.getMembershipDiscountRate();

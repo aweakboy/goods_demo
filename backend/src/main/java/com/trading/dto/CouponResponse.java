@@ -25,6 +25,7 @@ public class CouponResponse {
     private LocalDateTime validTo;
     private CouponStatus status;
     private CouponAudience audience;
+    private Boolean stackable;
     private Long createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -51,6 +52,7 @@ public class CouponResponse {
                 .validTo(coupon.getValidTo())
                 .status(coupon.getStatus())
                 .audience(coupon.getAudience())
+                .stackable(Boolean.TRUE.equals(coupon.getStackable()))
                 .createdBy(coupon.getCreatedBy())
                 .createdAt(coupon.getCreatedAt())
                 .updatedAt(coupon.getUpdatedAt())

@@ -26,8 +26,17 @@
         <el-descriptions-item v-if="hasMembershipSnapshot" label="会员套餐">
           {{ order.membershipPlanName || '-' }}（{{ discountText(order.membershipDiscountRate) }}）
         </el-descriptions-item>
-        <el-descriptions-item v-if="order.couponName" label="使用优惠券" :span="2">
-          {{ order.couponName }}（满 ¥{{ amountText(order.couponThresholdAmount) }} 减 ¥{{ amountText(order.couponDiscountAmount) }}）
+        <el-descriptions-item v-if="couponUsages.length" label="使用优惠券" :span="2">
+          <div class="coupon-usage-list">
+            <div v-for="usage in couponUsages" :key="usage.buyerCouponId" class="coupon-usage-item">
+              <el-tag size="small" :type="usage.audience === 'MEMBER' ? 'primary' : 'info'">
+                {{ usageAudienceLabel(usage.audience) }}
+              </el-tag>
+              <span>
+                {{ usage.couponName }}（满 ¥{{ amountText(usage.thresholdAmount) }} 减 ¥{{ amountText(usage.couponDiscountAmount) }}，实抵 ¥{{ amountText(usage.appliedDiscountAmount) }}）
+              </span>
+            </div>
+          </div>
         </el-descriptions-item>
         <el-descriptions-item v-if="order.status === 'PENDING_PAYMENT' && order.expiredAt" label="支付截止" :span="2">
           <span :style="{ color: countdown === '已超时' ? '#f56c6c' : remainingSecs < 60 ? '#e6a23c' : '#303133', fontWeight: 500 }">
@@ -184,6 +193,19 @@ const hasCouponSnapshot = computed(() =>
 const hasMembershipSnapshot = computed(() =>
   Number(order.value?.membershipDiscountAmount || 0) > 0
 )
+const couponUsages = computed(() => {
+  const usages = order.value?.couponUsages || []
+  if (usages.length > 0) return usages
+  if (!order.value?.couponName) return []
+  return [{
+    buyerCouponId: order.value.buyerCouponId,
+    couponName: order.value.couponName,
+    audience: 'PUBLIC',
+    thresholdAmount: order.value.couponThresholdAmount,
+    couponDiscountAmount: order.value.couponDiscountAmount,
+    appliedDiscountAmount: order.value.discountAmount
+  }]
+})
 
 function amountText(value) {
   return Number(value || 0).toFixed(2)
@@ -191,6 +213,10 @@ function amountText(value) {
 
 function discountText(value) {
   return `${(Number(value || 1) * 10).toFixed(1)}折`
+}
+
+function usageAudienceLabel(audience) {
+  return audience === 'MEMBER' ? '会员券' : '普通券'
 }
 
 async function load() {
@@ -309,4 +335,14 @@ onUnmounted(() => {
 .actions { display: flex; gap: 12px; }
 .muted { color: var(--text-secondary); font-size: 14px; }
 .shipment-map-block { margin-bottom: 12px; }
+.coupon-usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.coupon-usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 </style>

@@ -32,6 +32,13 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="叠加" width="90">
+        <template #default="{row}">
+          <el-tag :type="row.stackable ? 'success' : 'info'" size="small">
+            {{ row.stackable ? '允许' : '不允许' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="有效期" min-width="230">
         <template #default="{row}">
           {{ formatDate(row.validFrom) }} 至 {{ formatDate(row.validTo) }}
@@ -127,6 +134,9 @@
             <el-option label="会员专属券" value="MEMBER" />
           </el-select>
         </el-form-item>
+        <el-form-item label="允许叠加">
+          <el-switch v-model="form.stackable" active-text="允许" inactive-text="不允许" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible=false">取消</el-button>
@@ -162,7 +172,8 @@ const form = reactive({
   validFrom: '',
   validTo: '',
   status: 'ACTIVE',
-  audience: 'PUBLIC'
+  audience: 'PUBLIC',
+  stackable: false
 })
 
 const rules = {
@@ -204,7 +215,8 @@ function resetForm() {
     validFrom: '',
     validTo: '',
     status: 'ACTIVE',
-    audience: 'PUBLIC'
+    audience: 'PUBLIC',
+    stackable: false
   })
   formRef.value?.clearValidate()
 }
@@ -244,7 +256,8 @@ function openEdit(row) {
     validFrom: row.validFrom?.slice(0, 19),
     validTo: row.validTo?.slice(0, 19),
     status: row.status,
-    audience: row.audience || 'PUBLIC'
+    audience: row.audience || 'PUBLIC',
+    stackable: Boolean(row.stackable)
   })
   formRef.value?.clearValidate()
   dialogVisible.value = true

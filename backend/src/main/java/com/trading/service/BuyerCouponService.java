@@ -14,7 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -88,26 +92,68 @@ public class BuyerCouponService {
 
     @Transactional
     public CouponUsage prepareForOrder(Long buyerId, Long buyerCouponId, BigDecimal originalAmount) {
-        BuyerCoupon buyerCoupon = buyerCouponRepository.findByIdForUpdate(buyerCouponId)
-                .orElseThrow(() -> BusinessException.notFound("优惠券不存在"));
-        if (!buyerCoupon.getBuyerId().equals(buyerId)) {
-            throw BusinessException.forbidden("无权使用该优惠券");
+        return prepareForOrder(buyerId, List.of(buyerCouponId), originalAmount).primaryUsage();
+    }
+
+    @Transactional
+    public CouponUsagePlan prepareForOrder(Long buyerId, List<Long> buyerCouponIds, BigDecimal originalAmount) {
+        if (buyerCouponIds == null || buyerCouponIds.isEmpty()) {
+            return CouponUsagePlan.empty();
         }
-        Coupon coupon = buyerCoupon.getCoupon();
-        if (coupon == null) {
-            throw BusinessException.notFound("优惠券不存在");
+        if (buyerCouponIds.size() > 2) {
+            throw BusinessException.badRequest("最多只能选择2张优惠券");
         }
-        validateUsableForOrder(buyerCoupon, coupon, originalAmount);
-        BigDecimal discount = coupon.getDiscountAmount().min(originalAmount);
-        return new CouponUsage(
-                buyerCoupon,
-                coupon.getId(),
-                buyerCoupon.getId(),
-                coupon.getName(),
-                coupon.getThresholdAmount(),
-                coupon.getDiscountAmount(),
-                discount
-        );
+        if (buyerCouponIds.stream().anyMatch(Objects::isNull)) {
+            throw BusinessException.badRequest("优惠券ID不正确");
+        }
+        Set<Long> uniqueIds = new HashSet<>(buyerCouponIds);
+        if (uniqueIds.size() != buyerCouponIds.size()) {
+            throw BusinessException.badRequest("不能重复使用同一张优惠券");
+        }
+
+        List<BuyerCoupon> buyerCoupons = new ArrayList<>();
+        for (Long buyerCouponId : buyerCouponIds) {
+            BuyerCoupon buyerCoupon = buyerCouponRepository.findByIdForUpdate(buyerCouponId)
+                    .orElseThrow(() -> BusinessException.notFound("优惠券不存在"));
+            if (!buyerCoupon.getBuyerId().equals(buyerId)) {
+                throw BusinessException.forbidden("无权使用该优惠券");
+            }
+            Coupon coupon = buyerCoupon.getCoupon();
+            if (coupon == null) {
+                throw BusinessException.notFound("优惠券不存在");
+            }
+            validateUsableForOrder(buyerCoupon, coupon, originalAmount);
+            buyerCoupons.add(buyerCoupon);
+        }
+
+        if (buyerCoupons.size() == 2) {
+            validateStackablePair(buyerCoupons);
+        }
+
+        buyerCoupons.sort((left, right) -> Integer.compare(
+                audienceOrder(left.getCoupon().getAudience()),
+                audienceOrder(right.getCoupon().getAudience())
+        ));
+
+        BigDecimal remainingAmount = originalAmount.max(BigDecimal.ZERO);
+        List<CouponUsage> usages = new ArrayList<>();
+        for (BuyerCoupon buyerCoupon : buyerCoupons) {
+            Coupon coupon = buyerCoupon.getCoupon();
+            BigDecimal appliedDiscount = coupon.getDiscountAmount().min(remainingAmount).max(BigDecimal.ZERO);
+            remainingAmount = remainingAmount.subtract(appliedDiscount).max(BigDecimal.ZERO);
+            usages.add(new CouponUsage(
+                    buyerCoupon,
+                    coupon.getId(),
+                    buyerCoupon.getId(),
+                    coupon.getName(),
+                    coupon.getThresholdAmount(),
+                    coupon.getDiscountAmount(),
+                    appliedDiscount,
+                    coupon.getAudience(),
+                    Boolean.TRUE.equals(coupon.getStackable())
+            ));
+        }
+        return new CouponUsagePlan(usages);
     }
 
     public void markUsed(CouponUsage usage, Long orderId) {
@@ -119,6 +165,20 @@ public class BuyerCouponService {
         buyerCoupon.setUsedAt(LocalDateTime.now());
         buyerCoupon.setUsedOrderId(orderId);
         buyerCouponRepository.save(buyerCoupon);
+    }
+
+    public void markUsed(CouponUsagePlan plan, Long orderId) {
+        if (plan == null) {
+            return;
+        }
+        markUsed(plan.usages(), orderId);
+    }
+
+    public void markUsed(List<CouponUsage> usages, Long orderId) {
+        if (usages == null || usages.isEmpty()) {
+            return;
+        }
+        usages.forEach(usage -> markUsed(usage, orderId));
     }
 
     @Transactional
@@ -138,6 +198,17 @@ public class BuyerCouponService {
             buyerCoupon.setUsedOrderId(null);
             buyerCouponRepository.save(buyerCoupon);
         });
+    }
+
+    @Transactional
+    public void releaseForOrder(List<Long> buyerCouponIds, Long orderId) {
+        if (buyerCouponIds == null || buyerCouponIds.isEmpty() || orderId == null) {
+            return;
+        }
+        buyerCouponIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(buyerCouponId -> releaseForOrder(buyerCouponId, orderId));
     }
 
     public BuyerCouponStatus displayStatus(BuyerCoupon buyerCoupon) {
@@ -205,6 +276,24 @@ public class BuyerCouponService {
         }
     }
 
+    private void validateStackablePair(List<BuyerCoupon> buyerCoupons) {
+        Set<CouponAudience> audiences = new HashSet<>();
+        for (BuyerCoupon buyerCoupon : buyerCoupons) {
+            Coupon coupon = buyerCoupon.getCoupon();
+            if (!Boolean.TRUE.equals(coupon.getStackable())) {
+                throw BusinessException.badRequest("所选优惠券不支持叠加使用");
+            }
+            audiences.add(coupon.getAudience());
+        }
+        if (!audiences.contains(CouponAudience.PUBLIC) || !audiences.contains(CouponAudience.MEMBER)) {
+            throw BusinessException.badRequest("只能叠加一张普通券和一张会员专属券");
+        }
+    }
+
+    private int audienceOrder(CouponAudience audience) {
+        return audience == CouponAudience.MEMBER ? 1 : 0;
+    }
+
     private BuyerCouponStatus displayStatus(BuyerCoupon buyerCoupon, LocalDateTime now) {
         Coupon coupon = buyerCoupon.getCoupon();
         if (buyerCoupon.getStatus() == BuyerCouponStatus.UNUSED
@@ -223,6 +312,50 @@ public class BuyerCouponService {
             String couponName,
             BigDecimal thresholdAmount,
             BigDecimal couponDiscountAmount,
-            BigDecimal appliedDiscount
-    ) {}
+            BigDecimal appliedDiscount,
+            CouponAudience audience,
+            boolean stackable
+    ) {
+        public CouponUsage(
+                BuyerCoupon buyerCoupon,
+                Long couponId,
+                Long buyerCouponId,
+                String couponName,
+                BigDecimal thresholdAmount,
+                BigDecimal couponDiscountAmount,
+                BigDecimal appliedDiscount
+        ) {
+            this(buyerCoupon, couponId, buyerCouponId, couponName, thresholdAmount, couponDiscountAmount,
+                    appliedDiscount, null, false);
+        }
+    }
+
+    public record CouponUsagePlan(List<CouponUsage> usages, BigDecimal totalDiscount) {
+        public CouponUsagePlan {
+            usages = usages == null ? List.of() : List.copyOf(usages);
+            totalDiscount = totalDiscount == null ? BigDecimal.ZERO : totalDiscount;
+        }
+
+        public CouponUsagePlan(List<CouponUsage> usages) {
+            this(usages, sum(usages));
+        }
+
+        public static CouponUsagePlan empty() {
+            return new CouponUsagePlan(List.of(), BigDecimal.ZERO);
+        }
+
+        public CouponUsage primaryUsage() {
+            return usages.isEmpty() ? null : usages.get(0);
+        }
+
+        private static BigDecimal sum(List<CouponUsage> usages) {
+            if (usages == null || usages.isEmpty()) {
+                return BigDecimal.ZERO;
+            }
+            return usages.stream()
+                    .map(CouponUsage::appliedDiscount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+    }
 }

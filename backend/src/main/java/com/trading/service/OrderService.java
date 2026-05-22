@@ -7,6 +7,7 @@ import com.trading.dto.OrderRequest;
 import com.trading.dto.ShipRequest;
 import com.trading.entity.*;
 import com.trading.enums.AddressValidationStatus;
+import com.trading.enums.CouponAudience;
 import com.trading.enums.OrderStatus;
 import com.trading.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +36,7 @@ public class OrderService {
     private final BuyerCouponService buyerCouponService;
     private final MembershipService membershipService;
     private final ShipmentService shipmentService;
+    private final OrderCouponUsageRepository orderCouponUsageRepository;
 
     @Value("${app.order.payment-timeout-minutes:30}")
     private int paymentTimeoutMinutes;
@@ -45,6 +49,9 @@ public class OrderService {
     @OperationLog(module = "订单", action = "创建订单")
     @Transactional
     public Order createOrder(Long buyerId, OrderRequest req) {
+        if (req.getBuyerCouponId() != null && req.getBuyerCouponIds() != null && !req.getBuyerCouponIds().isEmpty()) {
+            throw BusinessException.badRequest("不能同时提交旧优惠券字段和多券字段");
+        }
         if (req.getAddressId() == null && !hasStructuredAddress(req)) {
             throw BusinessException.badRequest("收货信息不完整");
         }
@@ -86,11 +93,17 @@ public class OrderService {
         }
 
         BuyerCouponService.CouponUsage couponUsage = null;
-        BigDecimal discountAmount = BigDecimal.ZERO;
+        BuyerCouponService.CouponUsagePlan couponUsagePlan = BuyerCouponService.CouponUsagePlan.empty();
+        boolean legacyCouponField = false;
         if (req.getBuyerCouponId() != null) {
+            legacyCouponField = true;
             couponUsage = buyerCouponService.prepareForOrder(buyerId, req.getBuyerCouponId(), originalAmount);
-            discountAmount = couponUsage.appliedDiscount();
+            couponUsagePlan = new BuyerCouponService.CouponUsagePlan(List.of(couponUsage));
+        } else if (req.getBuyerCouponIds() != null && !req.getBuyerCouponIds().isEmpty()) {
+            couponUsagePlan = buyerCouponService.prepareForOrder(buyerId, req.getBuyerCouponIds(), originalAmount);
+            couponUsage = couponUsagePlan.primaryUsage();
         }
+        BigDecimal discountAmount = couponUsagePlan.totalDiscount();
         BigDecimal amountAfterCoupon = originalAmount.subtract(discountAmount);
         if (amountAfterCoupon.compareTo(BigDecimal.ZERO) < 0) {
             amountAfterCoupon = BigDecimal.ZERO;
@@ -142,14 +155,21 @@ public class OrderService {
         order = orderRepository.save(order);
 
         Long orderId = order.getId();
-        buyerCouponService.markUsed(couponUsage, orderId);
+        List<OrderCouponUsage> couponUsages = saveCouponUsages(orderId, couponUsagePlan);
+        if (legacyCouponField) {
+            buyerCouponService.markUsed(couponUsage, orderId);
+        } else {
+            buyerCouponService.markUsed(couponUsagePlan, orderId);
+        }
         orderItems.forEach(i -> i.setOrderId(orderId));
         orderItemRepository.saveAll(orderItems);
 
         List<Long> purchasedProductIds = cartItems.stream().map(CartItem::getProductId).toList();
         cartItemRepository.deleteByBuyerIdAndProductIdIn(buyerId, purchasedProductIds);
 
-        return orderRepository.findById(orderId).orElseThrow();
+        Order result = orderRepository.findById(orderId).orElseThrow();
+        result.setCouponUsages(couponUsages);
+        return result;
     }
 
     public List<Order> getBuyerOrders(Long buyerId, OrderStatus status) {
@@ -159,7 +179,7 @@ public class OrderService {
         } else {
             orders = orderRepository.findByBuyerIdOrderByCreatedAtDesc(buyerId);
         }
-        return enrichShipments(orders);
+        return enrichOrders(orders);
     }
 
     public Order getOrderDetail(Long orderId, Long buyerId) {
@@ -168,7 +188,7 @@ public class OrderService {
         if (!order.getBuyerId().equals(buyerId)) {
             throw BusinessException.forbidden("无权查看该订单");
         }
-        return enrichShipment(order);
+        return enrichOrder(order);
     }
 
     public Order validatePayable(Long orderId, Long buyerId) {
@@ -191,7 +211,7 @@ public class OrderService {
         }
         order.setStatus(OrderStatus.COMPLETED);
         Order saved = orderRepository.save(order);
-        return enrichShipment(saved);
+        return enrichOrder(saved);
     }
 
     @Transactional
@@ -217,9 +237,7 @@ public class OrderService {
                 productRepository.save(p);
             })
         );
-        if (order.getBuyerCouponId() != null) {
-            buyerCouponService.releaseForOrder(order.getBuyerCouponId(), order.getId());
-        }
+        releaseCouponsForOrder(order);
         return orderRepository.save(order);
     }
 
@@ -230,7 +248,7 @@ public class OrderService {
         } else {
             orders = orderRepository.findSellerOrders(sellerId);
         }
-        return enrichShipments(orders);
+        return enrichOrders(orders);
     }
 
     @Transactional
@@ -278,9 +296,7 @@ public class OrderService {
                 orderId + "-refund"
         );
         order.setStatus(OrderStatus.REFUNDED);
-        if (order.getBuyerCouponId() != null) {
-            buyerCouponService.releaseForOrder(order.getBuyerCouponId(), order.getId());
-        }
+        releaseCouponsForOrder(order);
         return orderRepository.save(order);
     }
 
@@ -375,6 +391,76 @@ public class OrderService {
     ) {}
 
     private record StockUpdate(Product product, int quantity) {}
+
+    private List<OrderCouponUsage> saveCouponUsages(Long orderId, BuyerCouponService.CouponUsagePlan couponUsagePlan) {
+        if (couponUsagePlan == null || couponUsagePlan.usages().isEmpty()) {
+            return List.of();
+        }
+        List<OrderCouponUsage> usages = couponUsagePlan.usages().stream()
+                .map(usage -> OrderCouponUsage.builder()
+                        .orderId(orderId)
+                        .couponId(usage.couponId())
+                        .buyerCouponId(usage.buyerCouponId())
+                        .couponName(usage.couponName())
+                        .audience(usage.audience() != null ? usage.audience() : CouponAudience.PUBLIC)
+                        .stackable(usage.stackable())
+                        .thresholdAmount(usage.thresholdAmount())
+                        .couponDiscountAmount(usage.couponDiscountAmount())
+                        .appliedDiscountAmount(usage.appliedDiscount())
+                        .build())
+                .toList();
+        List<OrderCouponUsage> saved = orderCouponUsageRepository.saveAll(usages);
+        return saved == null ? usages : saved;
+    }
+
+    private void releaseCouponsForOrder(Order order) {
+        List<OrderCouponUsage> usages = orderCouponUsageRepository.findByOrderIdOrderByIdAsc(order.getId());
+        if (usages != null && !usages.isEmpty()) {
+            buyerCouponService.releaseForOrder(
+                    usages.stream().map(OrderCouponUsage::getBuyerCouponId).toList(),
+                    order.getId()
+            );
+            return;
+        }
+        if (order.getBuyerCouponId() != null) {
+            buyerCouponService.releaseForOrder(order.getBuyerCouponId(), order.getId());
+        }
+    }
+
+    private Order enrichOrder(Order order) {
+        return enrichCouponUsages(enrichShipment(order));
+    }
+
+    private List<Order> enrichOrders(List<Order> orders) {
+        return enrichCouponUsages(enrichShipments(orders));
+    }
+
+    private Order enrichCouponUsages(Order order) {
+        if (order == null || order.getId() == null) {
+            return order;
+        }
+        List<OrderCouponUsage> usages = orderCouponUsageRepository.findByOrderIdOrderByIdAsc(order.getId());
+        order.setCouponUsages(usages == null ? List.of() : usages);
+        return order;
+    }
+
+    private List<Order> enrichCouponUsages(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return orders;
+        }
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .filter(id -> id != null)
+                .toList();
+        if (orderIds.isEmpty()) {
+            return orders;
+        }
+        List<OrderCouponUsage> usages = orderCouponUsageRepository.findByOrderIdInOrderByOrderIdAscIdAsc(orderIds);
+        Map<Long, List<OrderCouponUsage>> usageMap = usages == null ? Map.of() : usages.stream()
+                .collect(Collectors.groupingBy(OrderCouponUsage::getOrderId));
+        orders.forEach(order -> order.setCouponUsages(usageMap.getOrDefault(order.getId(), List.of())));
+        return orders;
+    }
 
     private Order enrichShipment(Order order) {
         if (shipmentService == null) {

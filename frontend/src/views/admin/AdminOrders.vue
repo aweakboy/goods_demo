@@ -17,6 +17,9 @@
       <el-table-column label="金额" width="110">
         <template #default="{row}">¥{{ row.totalAmount?.toFixed(2) }}</template>
       </el-table-column>
+      <el-table-column label="优惠券" width="110">
+        <template #default="{row}">¥{{ money(row.discountAmount) }}</template>
+      </el-table-column>
       <el-table-column label="会员优惠" width="110">
         <template #default="{row}">¥{{ money(row.membershipDiscountAmount) }}</template>
       </el-table-column>
@@ -50,9 +53,22 @@
           <el-descriptions-item label="买家">{{ detail.buyerUsername }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ statusLabel(detail.status) }}</el-descriptions-item>
           <el-descriptions-item label="金额">¥{{ detail.totalAmount?.toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="优惠券优惠">¥{{ money(detail.discountAmount) }}</el-descriptions-item>
           <el-descriptions-item label="会员优惠">¥{{ money(detail.membershipDiscountAmount) }}</el-descriptions-item>
           <el-descriptions-item label="会员套餐">
             {{ detail.membershipPlanName ? `${detail.membershipPlanName}（${discountText(detail.membershipDiscountRate)}）` : '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="detailCouponUsages.length" label="使用优惠券" :span="2">
+            <div class="coupon-usage-list">
+              <div v-for="usage in detailCouponUsages" :key="usage.buyerCouponId" class="coupon-usage-item">
+                <el-tag size="small" :type="usage.audience === 'MEMBER' ? 'primary' : 'info'">
+                  {{ usageAudienceLabel(usage.audience) }}
+                </el-tag>
+                <span>
+                  {{ usage.couponName }}（满 ¥{{ money(usage.thresholdAmount) }} 减 ¥{{ money(usage.couponDiscountAmount) }}，实抵 ¥{{ money(usage.appliedDiscountAmount) }}）
+                </span>
+              </div>
+            </div>
           </el-descriptions-item>
           <el-descriptions-item label="收货人">{{ detail.receiverName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="手机号">{{ detail.receiverPhone || '-' }}</el-descriptions-item>
@@ -182,12 +198,26 @@ const canMarkException = computed(() =>
   detailShipment.value?.id
   && !['DELIVERED', 'EXCEPTION'].includes(detailShipment.value.status)
 )
+const detailCouponUsages = computed(() => {
+  const usages = detail.value?.couponUsages || []
+  if (usages.length > 0) return usages
+  if (!detail.value?.couponName) return []
+  return [{
+    buyerCouponId: detail.value.buyerCouponId,
+    couponName: detail.value.couponName,
+    audience: 'PUBLIC',
+    thresholdAmount: detail.value.couponThresholdAmount,
+    couponDiscountAmount: detail.value.couponDiscountAmount,
+    appliedDiscountAmount: detail.value.discountAmount
+  }]
+})
 
 function statusLabel(s) { return STATUS_LABELS[s] || s }
 function statusType(s) { return STATUS_TYPES[s] || '' }
 function formatDate(dt) { return dt ? dt.replace('T', ' ').slice(0, 16) : '' }
 function money(value) { return Number(value || 0).toFixed(2) }
 function discountText(value) { return `${(Number(value || 1) * 10).toFixed(1)}折` }
+function usageAudienceLabel(audience) { return audience === 'MEMBER' ? '会员券' : '普通券' }
 
 async function load() {
   try {
@@ -293,5 +323,15 @@ onMounted(load)
 }
 .shipment-map-block {
   margin-bottom: 12px;
+}
+.coupon-usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.coupon-usage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

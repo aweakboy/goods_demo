@@ -19,6 +19,11 @@
                 {{ coupon.claimLimitReached ? '已达上限' : `剩余 ${coupon.remainingQuantity}` }}
               </el-tag>
             </div>
+            <div class="coupon-tags">
+              <el-tag size="small" :type="coupon.stackable ? 'success' : 'info'">
+                {{ coupon.stackable ? '可叠加' : '不可叠加' }}
+              </el-tag>
+            </div>
             <div class="coupon-desc">{{ coupon.description || '平台通用满减券' }}</div>
             <div class="coupon-meta">{{ formatDate(coupon.validFrom) }} 至 {{ formatDate(coupon.validTo) }}</div>
             <div class="coupon-actions">
@@ -52,7 +57,15 @@
                 <div class="coupon-name">{{ item.couponName }}</div>
                 <div class="coupon-rule">满 ¥{{ money(item.thresholdAmount) }} 减 ¥{{ money(item.discountAmount) }}</div>
               </div>
-              <el-tag :type="buyerCouponType(item.status)" size="small">{{ buyerCouponLabel(item.status) }}</el-tag>
+              <div class="coupon-status-tags">
+                <el-tag :type="buyerCouponType(item.status)" size="small">{{ buyerCouponLabel(item.status) }}</el-tag>
+                <el-tag :type="audienceType(item.audience)" size="small">{{ audienceLabel(item.audience) }}</el-tag>
+              </div>
+            </div>
+            <div class="coupon-tags">
+              <el-tag size="small" :type="item.stackable ? 'success' : 'info'">
+                {{ item.stackable ? '可叠加' : '不可叠加' }}
+              </el-tag>
             </div>
             <div class="coupon-desc">{{ item.description || '平台通用满减券' }}</div>
             <div class="coupon-meta">{{ formatDate(item.validFrom) }} 至 {{ formatDate(item.validTo) }}</div>
@@ -92,6 +105,14 @@ function buyerCouponLabel(status) {
 
 function buyerCouponType(status) {
   return { UNUSED: 'success', USED: 'info', EXPIRED: 'warning' }[status] || ''
+}
+
+function audienceLabel(audience) {
+  return audience === 'MEMBER' ? '会员专属' : '普通'
+}
+
+function audienceType(audience) {
+  return audience === 'MEMBER' ? 'primary' : 'info'
 }
 
 async function loadClaimable() {
@@ -165,6 +186,15 @@ onMounted(loadAll)
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+.coupon-status-tags,
+.coupon-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.coupon-tags {
+  margin-top: 10px;
 }
 .coupon-name {
   font-weight: 700;

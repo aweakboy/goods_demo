@@ -180,6 +180,87 @@ class BuyerCouponServiceTest {
     }
 
     @Test
+    void prepareForOrder_singleNonStackableCouponWithNewField_allowsSingleUse() {
+        BuyerCoupon buyerCoupon = buyerCoupon(10L, CouponAudience.PUBLIC, false,
+                BigDecimal.valueOf(100), BigDecimal.valueOf(10));
+        when(buyerCouponRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(buyerCoupon));
+
+        BuyerCouponService.CouponUsagePlan plan =
+                buyerCouponService.prepareForOrder(2L, List.of(10L), BigDecimal.valueOf(120));
+
+        assertEquals(1, plan.usages().size());
+        assertEquals(BigDecimal.valueOf(10), plan.totalDiscount());
+        assertEquals(CouponAudience.PUBLIC, plan.primaryUsage().audience());
+        assertFalse(plan.primaryUsage().stackable());
+    }
+
+    @Test
+    void prepareForOrder_publicAndMemberStackableCoupons_success() {
+        BuyerCoupon memberCoupon = buyerCoupon(11L, CouponAudience.MEMBER, true,
+                BigDecimal.valueOf(80), BigDecimal.valueOf(15));
+        BuyerCoupon publicCoupon = buyerCoupon(10L, CouponAudience.PUBLIC, true,
+                BigDecimal.valueOf(100), BigDecimal.valueOf(10));
+        when(buyerCouponRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(memberCoupon));
+        when(buyerCouponRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(publicCoupon));
+
+        BuyerCouponService.CouponUsagePlan plan =
+                buyerCouponService.prepareForOrder(2L, List.of(11L, 10L), BigDecimal.valueOf(120));
+
+        assertEquals(2, plan.usages().size());
+        assertEquals(BigDecimal.valueOf(25), plan.totalDiscount());
+        assertEquals(CouponAudience.PUBLIC, plan.usages().get(0).audience());
+        assertEquals(CouponAudience.MEMBER, plan.usages().get(1).audience());
+    }
+
+    @Test
+    void prepareForOrder_pairWithAnyNonStackableCoupon_rejects() {
+        BuyerCoupon publicCoupon = buyerCoupon(10L, CouponAudience.PUBLIC, true,
+                BigDecimal.valueOf(100), BigDecimal.valueOf(10));
+        BuyerCoupon memberCoupon = buyerCoupon(11L, CouponAudience.MEMBER, false,
+                BigDecimal.valueOf(80), BigDecimal.valueOf(15));
+        when(buyerCouponRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(publicCoupon));
+        when(buyerCouponRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(memberCoupon));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> buyerCouponService.prepareForOrder(2L, List.of(10L, 11L), BigDecimal.valueOf(120)));
+
+        assertEquals(400, ex.getStatus());
+        assertTrue(ex.getMessage().contains("不支持叠加"));
+    }
+
+    @Test
+    void prepareForOrder_pairWithSameAudience_rejects() {
+        BuyerCoupon first = buyerCoupon(10L, CouponAudience.PUBLIC, true,
+                BigDecimal.valueOf(100), BigDecimal.valueOf(10));
+        BuyerCoupon second = buyerCoupon(11L, CouponAudience.PUBLIC, true,
+                BigDecimal.valueOf(80), BigDecimal.valueOf(15));
+        when(buyerCouponRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(first));
+        when(buyerCouponRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(second));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> buyerCouponService.prepareForOrder(2L, List.of(10L, 11L), BigDecimal.valueOf(120)));
+
+        assertEquals(400, ex.getStatus());
+        assertTrue(ex.getMessage().contains("普通券"));
+    }
+
+    @Test
+    void prepareForOrder_pairWithOneThresholdNotReached_rejects() {
+        BuyerCoupon publicCoupon = buyerCoupon(10L, CouponAudience.PUBLIC, true,
+                BigDecimal.valueOf(100), BigDecimal.valueOf(10));
+        BuyerCoupon memberCoupon = buyerCoupon(11L, CouponAudience.MEMBER, true,
+                BigDecimal.valueOf(200), BigDecimal.valueOf(15));
+        when(buyerCouponRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(publicCoupon));
+        when(buyerCouponRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(memberCoupon));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> buyerCouponService.prepareForOrder(2L, List.of(10L, 11L), BigDecimal.valueOf(120)));
+
+        assertEquals(400, ex.getStatus());
+        assertTrue(ex.getMessage().contains("门槛"));
+    }
+
+    @Test
     void prepareForOrder_invalidOwnershipOrThreshold_throws() {
         BuyerCoupon foreign = buyerCoupon();
         foreign.setBuyerId(3L);
@@ -271,6 +352,25 @@ class BuyerCouponServiceTest {
         assertTrue(buyerCouponService.listUsable(2L).isEmpty());
     }
 
+    @Test
+    void releaseForOrder_listReleasesMatchingUsedCouponsOnlyAndDeduplicates() {
+        BuyerCoupon matching = usedBuyerCoupon(99L);
+        BuyerCoupon differentOrder = usedBuyerCoupon(88L);
+        differentOrder.setId(11L);
+        when(buyerCouponRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(matching));
+        when(buyerCouponRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(differentOrder));
+
+        buyerCouponService.releaseForOrder(List.of(10L, 11L, 10L), 99L);
+
+        assertEquals(BuyerCouponStatus.UNUSED, matching.getStatus());
+        assertNull(matching.getUsedOrderId());
+        assertEquals(BuyerCouponStatus.USED, differentOrder.getStatus());
+        assertEquals(88L, differentOrder.getUsedOrderId());
+        verify(buyerCouponRepository, times(1)).findByIdForUpdate(10L);
+        verify(buyerCouponRepository).save(matching);
+        verify(buyerCouponRepository, never()).save(differentOrder);
+    }
+
     private Coupon validCoupon() {
         return Coupon.builder()
                 .id(1L)
@@ -296,6 +396,25 @@ class BuyerCouponServiceTest {
                 .status(BuyerCouponStatus.UNUSED)
                 .build();
         buyerCoupon.setCoupon(validCoupon());
+        return buyerCoupon;
+    }
+
+    private BuyerCoupon buyerCoupon(Long id, CouponAudience audience, boolean stackable,
+                                    BigDecimal thresholdAmount, BigDecimal discountAmount) {
+        Coupon coupon = validCoupon();
+        coupon.setId(100L + id);
+        coupon.setName(audience == CouponAudience.MEMBER ? "会员券" : "普通券");
+        coupon.setAudience(audience);
+        coupon.setStackable(stackable);
+        coupon.setThresholdAmount(thresholdAmount);
+        coupon.setDiscountAmount(discountAmount);
+        BuyerCoupon buyerCoupon = BuyerCoupon.builder()
+                .id(id)
+                .buyerId(2L)
+                .couponId(coupon.getId())
+                .status(BuyerCouponStatus.UNUSED)
+                .build();
+        buyerCoupon.setCoupon(coupon);
         return buyerCoupon;
     }
 

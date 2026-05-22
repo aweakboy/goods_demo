@@ -27,6 +27,7 @@ public class AdminService {
     private final OrderRepository orderRepository;
     private final ShopRepository shopRepository;
     private final ShipmentService shipmentService;
+    private final OrderCouponUsageRepository orderCouponUsageRepository;
 
     // --- Overview ---
 
@@ -146,6 +147,8 @@ public class AdminService {
         Map<Long, String> buyerNames = userRepository.findAllById(buyerIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getUsername));
 
+        attachCouponUsages(orders.getContent());
+
         return orders.map(o -> AdminOrderResponse.from(
                 o,
                 buyerNames.getOrDefault(o.getBuyerId(), ""),
@@ -157,6 +160,7 @@ public class AdminService {
     public AdminOrderResponse getOrderDetail(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> BusinessException.notFound("订单不存在"));
+        attachCouponUsages(order);
         String buyerName = userRepository.findById(order.getBuyerId())
                 .map(User::getUsername).orElse("");
         return AdminOrderResponse.from(
@@ -165,5 +169,30 @@ public class AdminService {
                 true,
                 shipmentService != null ? shipmentService.getShipmentResponse(order) : null
         );
+    }
+
+    private void attachCouponUsages(Order order) {
+        if (order == null || order.getId() == null) {
+            return;
+        }
+        List<OrderCouponUsage> usages = orderCouponUsageRepository.findByOrderIdOrderByIdAsc(order.getId());
+        order.setCouponUsages(usages == null ? List.of() : usages);
+    }
+
+    private void attachCouponUsages(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return;
+        }
+        List<Long> orderIds = orders.stream()
+                .map(Order::getId)
+                .filter(id -> id != null)
+                .toList();
+        if (orderIds.isEmpty()) {
+            return;
+        }
+        List<OrderCouponUsage> foundUsages = orderCouponUsageRepository.findByOrderIdInOrderByOrderIdAscIdAsc(orderIds);
+        Map<Long, List<OrderCouponUsage>> usages = foundUsages == null ? Map.of() : foundUsages.stream()
+                .collect(Collectors.groupingBy(OrderCouponUsage::getOrderId));
+        orders.forEach(order -> order.setCouponUsages(usages.getOrDefault(order.getId(), List.of())));
     }
 }

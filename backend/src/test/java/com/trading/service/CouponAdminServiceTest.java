@@ -41,7 +41,32 @@ class CouponAdminServiceTest {
         assertEquals("满100减10", coupon.getName());
         assertEquals(0, coupon.getClaimedQuantity());
         assertEquals(CouponStatus.ACTIVE, coupon.getStatus());
+        assertFalse(coupon.getStackable());
         assertEquals(9L, coupon.getCreatedBy());
+    }
+
+    @Test
+    void createAndUpdate_stackableTrue_savesConfiguration() {
+        CouponRequest request = validRequest();
+        request.setStackable(true);
+        when(couponRepository.save(any(Coupon.class))).thenAnswer(i -> {
+            Coupon coupon = i.getArgument(0);
+            coupon.setId(1L);
+            return coupon;
+        });
+
+        Coupon created = couponAdminService.create(9L, request);
+
+        assertTrue(created.getStackable());
+
+        Coupon existing = validCoupon();
+        request.setName("满100减20");
+        when(couponRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        Coupon updated = couponAdminService.update(1L, request);
+
+        assertEquals("满100减20", updated.getName());
+        assertTrue(updated.getStackable());
     }
 
     @Test
